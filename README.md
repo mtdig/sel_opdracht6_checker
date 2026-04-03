@@ -7,21 +7,22 @@ Automated checker for the SELab opdracht6 assignment.  Builds a docker container
 Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs):
 
 ```bash
-docker run --rm -e LOCAL_USER=$(whoami) mtdig/sel-opdracht6-checker
+docker run --rm -e LOCAL_USER=$USER mtdig/sel-opdracht6-checker:latest
 ```
 
 If your VM uses a different IP:
 
 ```bash
-docker run --rm -e LOCAL_USER=$(whoami) -e TARGET=192.168.128.20 mtdig/sel-opdracht6-checker
+docker run --rm -e LOCAL_USER=$USER -e TARGET=192.168.128.20 mtdig/sel-opdracht6-checker:latest
 ```
 
 ### Environment variables
 
-| Variable     | Default          | Description                                      |
-|--------------|------------------|--------------------------------------------------|
-| `TARGET`     | `192.168.56.20`  | IP-adres van de VM                               |
-| `LOCAL_USER` | default is root uit de container    | Jouw gebruikersnaam (gebruik `$(whoami)` of `$USER` of ...)         |
+| Variable         | Default          | Description                                      |
+|------------------|------------------|--------------------------------------------------|
+| `TARGET`         | `192.168.56.20`  | IP address of the VM                             |
+| `LOCAL_USER`     | `root` (container default) | Your username (use `$(whoami)` or `$USER` or ...) |
+| `TRACE_DELAY_MS` | `0`              | Pause in milliseconds after each trace line, so you can see which command is running before it gets cleared. E.g. `500` for half a second. |
 
 
 ## What it checks
