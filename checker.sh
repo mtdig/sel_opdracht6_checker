@@ -185,9 +185,6 @@ EOF
              "Verwacht '${LOCAL_USER}' in de pagina-inhoud"
     fi
 
-    # Clean up
-    ssh_cmd "rm -f ${remote_path}" &>/dev/null || true
-    rm -f "$tmpfile"
 }
 
 check_mysql_remote() {
