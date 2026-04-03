@@ -6,6 +6,7 @@ set -euo pipefail
 # ============================================================================
 
 TARGET="${TARGET:-192.168.56.20}"
+LOCAL_USER="${LOCAL_USER:-$(whoami)}"
 SSH_USER="trouble"
 SSH_PASS="shoot"
 MYSQL_REMOTE_USER="appusr"
@@ -122,11 +123,26 @@ check_apache_https() {
  
 
 check_sftp_upload() {
-    local tmpfile
-    tmpfile=$(mktemp /tmp/selab-check-XXXXXX.txt)
-    echo "selab-checker test $(date)" > "$tmpfile"
-    local remote_path="/var/www/selab-checker-test.txt"
+    section "SFTP upload & roundtrip check"
 
+    local tmpfile
+    tmpfile=$(mktemp /tmp/selab-opdracht6-XXXXXX.html)
+    local remote_path="/var/www/html/opdracht6.html"
+    local check_url="${APACHE_URL}/opdracht6.html"
+
+    # Create an HTML file containing the local username
+    cat > "$tmpfile" <<HTMLEOF
+<!DOCTYPE html>
+<html>
+<head><title>Opdracht 6</title></head>
+<body>
+<h1>SELab Opdracht 6</h1>
+<p>Ingediend door: ${LOCAL_USER}</p>
+</body>
+</html>
+HTMLEOF
+
+    # Step 1: Upload via SFTP
     if sshpass -p "${SSH_PASS}" sftp \
         -o StrictHostKeyChecking=no \
         -o UserKnownHostsFile=/dev/null \
@@ -136,13 +152,38 @@ check_sftp_upload() {
 put ${tmpfile} ${remote_path}
 EOF
     then
-        pass "SFTP upload naar /var/www als ${SSH_USER}"
-        # Clean up the test file
-        ssh_cmd "rm -f ${remote_path}" &>/dev/null || true
+        pass "SFTP upload van opdracht6.html naar ${remote_path} als ${SSH_USER}"
     else
-        fail "SFTP upload naar /var/www als ${SSH_USER}" \
+        fail "SFTP upload van opdracht6.html naar ${remote_path} als ${SSH_USER}" \
              "Kan niet uploaden via SFTP op poort 22"
+        rm -f "$tmpfile"
+        return
     fi
+
+    # Step 2: Fetch the page via HTTPS and verify the username is present
+    local body http_code
+    body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${check_url}" 2>/dev/null || echo "000")
+    http_code=$(echo "$body" | tail -1)
+    body=$(echo "$body" | sed '$d')
+
+    if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
+        pass "opdracht6.html bereikbaar via HTTPS op ${check_url} (HTTP ${http_code})"
+    else
+        fail "opdracht6.html niet bereikbaar via HTTPS op ${check_url}" \
+             "HTTP status: ${http_code}"
+        rm -f "$tmpfile"
+        return
+    fi
+
+    if echo "$body" | grep -q "${LOCAL_USER}"; then
+        pass "Roundtrip OK: gebruiker '${LOCAL_USER}' gevonden in opdracht6.html"
+    else
+        fail "Roundtrip NIET OK: gebruiker '${LOCAL_USER}' niet gevonden in opdracht6.html" \
+             "Verwacht '${LOCAL_USER}' in de pagina-inhoud"
+    fi
+
+    # Clean up
+    ssh_cmd "rm -f ${remote_path}" &>/dev/null || true
     rm -f "$tmpfile"
 }
 
@@ -392,7 +433,7 @@ check_ping
 check_ssh
 check_internet
 check_apache_https
-# check_sftp_upload
+check_sftp_upload
 check_mysql_remote
 check_mysql_local_via_ssh
 check_mysql_admin_not_remote
