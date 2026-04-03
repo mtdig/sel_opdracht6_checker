@@ -160,6 +160,9 @@ EOF
         return
     fi
 
+    # Step 1b: Fix permissions so www-data can read the file
+    ssh_cmd "chmod 644 ${remote_path}" &>/dev/null || true
+
     # Step 2: Fetch the page via HTTPS and verify the username is present
     local body http_code
     body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${check_url}" 2>/dev/null || echo "000")
