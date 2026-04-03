@@ -41,7 +41,7 @@ docker run --rm -e LOCAL_USER=$(whoami) -e TARGET=192.168.128.20 mtdig/sel-opdra
 | 11 | WordPress  | Site bereikbaar op poort 8080                                      |
 | 12 | WordPress  | Minstens 3 posts aanwezig                                          |
 | 13 | WordPress  | Login als wpuser                                                   |
-| 14 | WordPress  | Database appdb bestaat                                             |
+| 14 | WordPress  | Database wpdb bestaat                                             |
 | 15 | Portainer  | HTTPS bereikbaar op poort 9443                                     |
 | 16 | Vaultwarden| HTTPS bereikbaar op poort 4123                                     |
 | 17 | Minetest   | UDP poort 30000 open                                               |
