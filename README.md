@@ -1,6 +1,6 @@
 # SELab Opdracht 6 Checker
 
-Automated checker for the SELab opdracht6 assignment.
+Automated checker for the SELab opdracht6 assignment.  Builds a docker container for arm64 (linux, macos silicon, win ) and amd64 (linux, windows).
 
 ## Usage
 
