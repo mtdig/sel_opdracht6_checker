@@ -1,19 +1,19 @@
 # SELab Opdracht 6 Checker
 
-Automated checker for the SELab VM assignment.
+Automated checker for the SELab opdracht6 assignment.  Builds a docker container for arm64 (linux, macos silicon, win ) and amd64 (linux, windows).
 
 ## Usage
 
 Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs):
 
 ```bash
-docker run --rm -e LOCAL_USER=$(whoami) mtdig/sel-opdracht6-checker:latest
+docker run --rm -e LOCAL_USER=$(whoami) mtdig/sel-opdracht6-checker
 ```
 
 If your VM uses a different IP:
 
 ```bash
-docker run --rm -e LOCAL_USER=$(whoami) -e TARGET=192.168.128.20 mtdig/sel-opdracht6-checker:latest
+docker run --rm -e LOCAL_USER=$(whoami) -e TARGET=192.168.128.20 mtdig/sel-opdracht6-checker
 ```
 
 ### Environment variables
