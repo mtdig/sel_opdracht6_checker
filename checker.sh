@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================================
-# SELab Assignment Checker
+# SELab Opdracht6 Checker
 # ============================================================================
 
 TARGET="${TARGET:-192.168.56.20}"
@@ -384,7 +384,7 @@ check_docker_compose() {
 
 echo ""
 bold "====================================================="
-bold "         SELab Assignment Checker"
+bold "         SELab Opdracht6 Checker"
 bold "         Target: ${TARGET}"
 bold "====================================================="
 
