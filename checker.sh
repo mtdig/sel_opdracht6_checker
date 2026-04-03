@@ -134,11 +134,11 @@ check_sftp_upload() {
     cat > "$tmpfile" <<HTMLEOF
 <!DOCTYPE html>
 <html>
-<head><title>Opdracht 6</title></head>
-<body>
-<h1>SELab Opdracht 6</h1>
-<p>Ingediend door: ${LOCAL_USER}</p>
-</body>
+    <head><title>Opdracht 6</title></head>
+    <body>
+        <h1>SELab Opdracht 6</h1>
+        <p>Ingediend door: ${LOCAL_USER}</p>
+    </body>
 </html>
 HTMLEOF
 
@@ -427,6 +427,7 @@ echo ""
 bold "====================================================="
 bold "         SELab Opdracht6 Checker"
 bold "         Target: ${TARGET}"
+bold "         Voor: ${LOCAL_USER}"
 bold "====================================================="
 
 check_ping
