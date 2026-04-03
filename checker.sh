@@ -281,13 +281,13 @@ check_wordpress_login() {
 }
  
 check_wordpress_db() {
-    if mysql -h "${TARGET}" -P 3306 --skip-ssl \
-        -u "${MYSQL_REMOTE_USER}" -p"${MYSQL_REMOTE_PASS}" \
-        appdb -e "SELECT 1;" &>/dev/null; then
-        pass "WordPress database wpdb bestaat en is bereikbaar"
+    local result
+    result=$(ssh_cmd "mysql -u ${WP_USER} -p'${WP_PASS}' wpdb -e 'SELECT 1;' 2>/dev/null" || echo "error")
+    if [[ "$result" == *"1"* ]]; then
+        pass "WordPress database wpdb bestaat en is bereikbaar via SSH"
     else
-        fail "WordPress database wpdb niet bereikbaar" \
-             "Controleer of database wpdb bestaat"
+        fail "WordPress database wpdb niet bereikbaar via SSH" \
+             "Controleer of database wpdb bestaat en gebruiker ${WP_USER} toegang heeft"
     fi
 }
 
