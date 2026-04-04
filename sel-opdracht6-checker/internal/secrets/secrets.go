@@ -23,7 +23,7 @@ const (
 	iterations = 10000
 )
 
-// Decrypt decrypts raw OpenSSL enc'd bytes (aes-256-cbc, pbkdf2) and
+// Decrypt decrypts raw OpenSSL enc bytes (aes-256-cbc, pbkdf2) and
 // returns the plaintext.
 func Decrypt(data []byte, passphrase string) ([]byte, error) {
 	if len(data) < len(saltPrefix)+8 {

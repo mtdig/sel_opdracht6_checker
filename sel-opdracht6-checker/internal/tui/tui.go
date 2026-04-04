@@ -12,8 +12,6 @@ import (
 	"github.com/mtdig/sel-opdracht6-checker/internal/checks"
 )
 
-// -- Styles -----------------------------------------------------------------
-
 var (
 	bannerStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -33,16 +31,12 @@ var (
 			MarginTop(1)
 )
 
-// -- Messages ---------------------------------------------------------------
-
 type checkStartMsg struct{ index int }
 type checkDoneMsg struct {
 	index   int
 	results []checks.CheckResult
 }
 type allDoneMsg struct{}
-
-// -- Check group state ------------------------------------------------------
 
 type groupState int
 
@@ -57,8 +51,6 @@ type checkGroup struct {
 	state   groupState
 	results []checks.CheckResult
 }
-
-// -- Model ------------------------------------------------------------------
 
 type Model struct {
 	cfg      *checks.Cfg

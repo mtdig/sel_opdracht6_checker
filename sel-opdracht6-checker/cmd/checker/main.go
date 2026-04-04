@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mtdig/sel-opdracht6-checker/internal/checks"
+	"github.com/mtdig/sel-opdracht6-checker/internal/runner"
 	"github.com/mtdig/sel-opdracht6-checker/internal/secrets"
 	"github.com/mtdig/sel-opdracht6-checker/internal/tui"
 )
@@ -19,17 +20,23 @@ var embeddedSecrets []byte
 var Version = "dev"
 
 func main() {
-	// -- Version flag --------------------------------------------------
-	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
-		fmt.Println(Version)
-		os.Exit(0)
+	// -- Flags --
+	jsonMode := false
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "--version", "-v":
+			fmt.Println(Version)
+			os.Exit(0)
+		case "--json", "-j":
+			jsonMode = true
+		}
 	}
 
 	target := envOr("TARGET", "192.168.56.20")
 	localUser := envOr("LOCAL_USER", currentUser())
 	decryptPass := os.Getenv("DECRYPT_PASS")
 
-	// -- Validate inputs ------------------------------------------------
+	// -- Validate inputs
 	if decryptPass == "" {
 		fmt.Fprintln(os.Stderr, "ERROR: DECRYPT_PASS is not set.")
 		fmt.Fprintln(os.Stderr, "Pass the decryption passphrase as an environment variable:")
@@ -44,8 +51,7 @@ func main() {
 		"WP_USER", "WP_PASS",
 	}
 
-	// -- Load secrets: SECRETS_FILE overrides embedded ------------------
-	var sec map[string]string
+	// -- Load secrets: SECRETS_FILE overrides embedded
 	var err error
 
 	if path := os.Getenv("SECRETS_FILE"); path != "" {
@@ -58,9 +64,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	// -- Build config & run TUI -----------------------------------------
+	// -- Build config & run
 	cfg := checks.NewCfg(target, localUser, sec)
 
+	if jsonMode {
+		report := runner.Run(cfg, Version, os.Stderr)
+		out, err := report.JSON()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "JSON marshal error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(out))
+		if report.Summary.Failed > 0 {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	// -- TUI mode (default)
 	model := tui.NewModel(cfg, Version)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	finalModel, err := p.Run()

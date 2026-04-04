@@ -19,7 +19,7 @@ import (
 	probing "github.com/prometheus-community/pro-bing"
 )
 
-// -- Result types -----------------------------------------------------------
+// -- Result types
 
 type Status int
 
@@ -40,7 +40,7 @@ func pass(msg string) CheckResult         { return CheckResult{StatusPass, msg, 
 func fail(msg, detail string) CheckResult { return CheckResult{StatusFail, msg, detail} }
 func skip(msg, reason string) CheckResult { return CheckResult{StatusSkip, msg, reason} }
 
-// -- Config -----------------------------------------------------------------
+// -- Config
 
 // Cfg holds all runtime configuration.
 type Cfg struct {
@@ -124,7 +124,7 @@ func AllChecks() []CheckDef {
 	}
 }
 
-// -- HTTP helper ------------------------------------------------------------
+// -- HTTP helper
 
 var httpClient = &http.Client{
 	Timeout: 5 * time.Second,
@@ -149,7 +149,7 @@ func httpGet(url string) (int, string, error) {
 	return resp.StatusCode, string(body), nil
 }
 
-// -- SSH helpers ------------------------------------------------------------
+// -- SSH helpers
 
 func requireSSH(c *Cfg, name string) ([]CheckResult, bool) {
 	if !c.SSHOK {
@@ -165,7 +165,7 @@ func sshRun(c *Cfg, cmd string) (string, error) {
 	return c.SSHClient.Run(cmd)
 }
 
-// -- Check implementations --------------------------------------------------
+// -- Check implementations --
 
 func checkPing(c *Cfg) []CheckResult {
 	pinger, err := probing.NewPinger(c.Target)

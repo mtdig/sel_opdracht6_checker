@@ -59,7 +59,7 @@ docker run --rm \
 ### Environment variables
 
 | Variable         | Default                | Description                                                  |
-|------------------|------------------------|--------------------------------------------------------------|
+|------------------|------------------------|--------------|
 | `DECRYPT_PASS`   | *(required)*           | Passphrase for decrypting the embedded credentials           |
 | `TARGET`         | `192.168.56.20`        | IP address of the VM                                         |
 | `LOCAL_USER`     | current OS user        | Your host username (use `$USER` / `$env:USERNAME`)           |
@@ -88,7 +88,7 @@ openssl enc -aes-256-cbc -pbkdf2 -pass pass:'letmein!' \
 ## What it checks
 
 | #  | Category   | Check                                                              |
-|----|------------|--------------------------------------------------------------------|
+|----|------------|--------------------|
 | 1  | Netwerk    | VM pingbaar op `TARGET`                                            |
 | 2  | SSH        | Login als trouble/shoot op poort 22                                |
 | 3  | Netwerk    | VM heeft internettoegang                                           |
