@@ -7,21 +7,50 @@ Automated checker for the SELab opdracht6 assignment.  Builds a docker container
 Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs):
 
 ```bash
-docker run --rm -e LOCAL_USER=$(whoami) mtdig/sel-opdracht6-checker
+docker run --rm \
+  -e LOCAL_USER=$USER \
+  -e DECRYPT_PASS="<pass>" \
+  mtdig/sel-opdracht6-checker
 ```
 
 If your VM uses a different IP:
 
 ```bash
-docker run --rm -e LOCAL_USER=$(whoami) -e TARGET=192.168.128.20 mtdig/sel-opdracht6-checker
+docker run --rm \
+  -e LOCAL_USER=$(whoami) \
+  -e DECRYPT_PASS="<pass>" \
+  -e TARGET=192.168.128.20 \
+  mtdig/sel-opdracht6-checker
 ```
+
+> **Tip:** You can put the variables in a `.env` file and use `docker run --env-file .env ...`
+> to avoid pasting the passphrase every time.
 
 ### Environment variables
 
-| Variable     | Default          | Description                                      |
-|--------------|------------------|--------------------------------------------------|
-| `TARGET`     | `192.168.56.20`  | IP-adres van de VM                               |
-| `LOCAL_USER` | default is root uit de container    | Jouw gebruikersnaam (gebruik `$(whoami)` of `$USER` of ...)         |
+| Variable       | Default              | Description                                                         |
+|----------------|----------------------|---------------------------------------------------------------------|
+| `DECRYPT_PASS` | *(required)*         | Passphrase for decrypting the embedded credentials                  |
+| `TARGET`       | `192.168.56.20`      | IP address of the VM                                                |
+| `LOCAL_USER`   | `root` (in container)| Your host username (use `$(whoami)` or `$USER`)                     |
+
+### Secrets & encryption
+
+The checker image contains an encrypted `secrets.env.enc` file with the
+credentials needed for the checks (SSH, MySQL, WordPress, …).  At startup the
+checker decrypts this file using the `DECRYPT_PASS` environment variable you
+provide.
+
+This means the **Docker image is safe to publish publicly** — the secrets can
+only be read by someone who has the passphrase.
+
+To re-encrypt the secrets after changing them:
+
+```bash
+# Edit secrets.env (not committed to git)
+openssl enc -aes-256-cbc -pbkdf2 -pass pass:'letmein!' \
+    -in secrets.env -out secrets.env.enc
+```
 
 
 ## What it checks

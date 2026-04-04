@@ -7,14 +7,38 @@ set -euo pipefail
 
 TARGET="${TARGET:-192.168.56.20}"
 LOCAL_USER="${LOCAL_USER:-$(whoami)}"
-SSH_USER="trouble"
-SSH_PASS="shoot"
-MYSQL_REMOTE_USER="appusr"
-MYSQL_REMOTE_PASS="letmein!"
-MYSQL_LOCAL_USER="admin"
-MYSQL_LOCAL_PASS="letmein!"
-WP_USER="wpuser"
-WP_PASS="letmein!"
+
+# ── Secrets (decrypted at runtime via openssl) ─────────────────────────────
+SECRETS_FILE="/secrets.env.enc"
+
+if [[ -z "${DECRYPT_PASS:-}" ]]; then
+    echo -e "\e[31mERROR: DECRYPT_PASS is not set.\e[0m"
+    echo "Pass the decryption passphrase as an environment variable:"
+    echo "  docker run --rm -e DECRYPT_PASS=\"...\" -e LOCAL_USER=\$USER mtdig/sel-opdracht6-checker"
+    exit 1
+fi
+
+if [[ ! -f "$SECRETS_FILE" ]]; then
+    echo -e "\e[31mERROR: Encrypted secrets file ${SECRETS_FILE} not found.\e[0m"
+    exit 1
+fi
+
+# Decrypt and source the secrets
+eval "$(openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$DECRYPT_PASS" -in "$SECRETS_FILE" 2>/dev/null)" || {
+    echo -e "\e[31mERROR: Failed to decrypt secrets. Is DECRYPT_PASS correct?\e[0m"
+    exit 1
+}
+
+# Verify required secrets are present
+for var in SSH_USER SSH_PASS MYSQL_REMOTE_USER MYSQL_REMOTE_PASS \
+           MYSQL_LOCAL_USER MYSQL_LOCAL_PASS WP_USER WP_PASS; do
+    if [[ -z "${!var:-}" ]]; then
+        echo -e "\e[31mERROR: Secret ${var} missing after decryption.\e[0m"
+        exit 1
+    fi
+done
+# ────────────────────────────────────────────────────────────────────────────
+
 PORTAINER_URL="https://${TARGET}:9443"
 VAULTWARDEN_URL="https://${TARGET}:4123"
 PLANKA_URL="http://${TARGET}:3000"
