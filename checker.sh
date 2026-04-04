@@ -435,14 +435,19 @@ check_vaultwarden() {
 
 check_minetest() {
     section "Docker - Minetest"
+    require_ssh "Minetest check" || return 0
 
-    trace "nc -u -w 2 ${TARGET} ${MINETEST_PORT}"
-    if echo "test" | nc -u -w 2 "${TARGET}" "${MINETEST_PORT}" &>/dev/null; then
-        trace_done
-        pass "Minetest UDP poort ${MINETEST_PORT} is open"
+    trace "ssh ${SSH_USER}@${TARGET} docker ps --filter name=minetest"
+    local ports
+    ports=$(ssh_cmd "docker ps --filter name=minetest --format '{{.Ports}}' 2>/dev/null" || echo "")
+    trace_done
+
+    if echo "$ports" | grep -q "${MINETEST_PORT}"; then
+        pass "Minetest container draait op UDP poort ${MINETEST_PORT}"
+    elif ssh_cmd "docker ps --format '{{.Names}}' 2>/dev/null" | grep -qi minetest; then
+        pass "Minetest container draait (poort niet bevestigd)"
     else
-        trace_done
-        fail "Minetest niet bereikbaar op UDP poort ${MINETEST_PORT}" \
+        fail "Minetest container niet gevonden op UDP poort ${MINETEST_PORT}" \
              "Controleer of de Minetest container draait"
     fi
 }

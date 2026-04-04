@@ -477,31 +477,26 @@ func checkVaultwarden(c *Cfg) []CheckResult {
 }
 
 func checkMinetest(c *Cfg) []CheckResult {
-	addr := net.JoinHostPort(c.Target, fmt.Sprintf("%d", c.MinetestPort))
-	conn, err := net.DialTimeout("udp", addr, 2*time.Second)
-	if err != nil {
-		return []CheckResult{fail(
-			fmt.Sprintf("Minetest UDP poort %d niet bereikbaar", c.MinetestPort),
-			"Controleer of de Minetest container draait",
-		)}
+	if r, ok := requireSSH(c, "Minetest check"); !ok {
+		return r
 	}
-	defer conn.Close()
 
-	conn.SetDeadline(time.Now().Add(2 * time.Second))
-	conn.Write([]byte("test"))
-	buf := make([]byte, 64)
-	_, err = conn.Read(buf)
-
-	if err != nil {
-		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-			return []CheckResult{pass(fmt.Sprintf("Minetest UDP poort %d is open", c.MinetestPort))}
-		}
-		return []CheckResult{fail(
-			fmt.Sprintf("Minetest UDP poort %d niet bereikbaar", c.MinetestPort),
-			"Controleer of de Minetest container draait",
-		)}
+	// Check if the container is running and listening on the expected port
+	out, _ := sshRun(c, "docker ps --filter name=minetest --format '{{.Ports}}' 2>/dev/null")
+	if strings.Contains(out, fmt.Sprintf("%d", c.MinetestPort)) {
+		return []CheckResult{pass(fmt.Sprintf("Minetest container draait op UDP poort %d", c.MinetestPort))}
 	}
-	return []CheckResult{pass(fmt.Sprintf("Minetest UDP poort %d is open", c.MinetestPort))}
+
+	// Fallback: check if the container is running at all
+	names, _ := sshRun(c, "docker ps --format '{{.Names}}' 2>/dev/null")
+	if strings.Contains(strings.ToLower(names), "minetest") {
+		return []CheckResult{pass("Minetest container draait (poort niet bevestigd)")}
+	}
+
+	return []CheckResult{fail(
+		fmt.Sprintf("Minetest container niet gevonden op UDP poort %d", c.MinetestPort),
+		"Controleer of de Minetest container draait",
+	)}
 }
 
 func checkPlanka(c *Cfg) []CheckResult {
