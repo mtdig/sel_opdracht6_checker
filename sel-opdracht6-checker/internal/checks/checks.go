@@ -10,11 +10,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/mtdig/sel-opdracht6-checker/internal/sshclient"
 	"github.com/pkg/sftp"
+	probing "github.com/prometheus-community/pro-bing"
 )
 
 // -- Result types -----------------------------------------------------------
@@ -166,16 +168,34 @@ func sshRun(c *Cfg, cmd string) (string, error) {
 // -- Check implementations --------------------------------------------------
 
 func checkPing(c *Cfg) []CheckResult {
-	for _, port := range []string{"22", "80", "443"} {
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(c.Target, port), 3*time.Second)
-		if err == nil {
-			conn.Close()
-			return []CheckResult{pass(fmt.Sprintf("VM is bereikbaar op %s", c.Target))}
-		}
+	pinger, err := probing.NewPinger(c.Target)
+	if err != nil {
+		return []CheckResult{fail(
+			fmt.Sprintf("VM is niet bereikbaar op %s", c.Target),
+			fmt.Sprintf("Kan pinger niet aanmaken: %v", err),
+		)}
+	}
+	pinger.Count = 1
+	pinger.Timeout = 5 * time.Second
+
+	// On Windows raw ICMP sockets are required.
+	if runtime.GOOS == "windows" {
+		pinger.SetPrivileged(true)
+	}
+
+	if err := pinger.Run(); err != nil {
+		return []CheckResult{fail(
+			fmt.Sprintf("VM is niet bereikbaar op %s", c.Target),
+			fmt.Sprintf("Ping mislukt: %v", err),
+		)}
+	}
+	stats := pinger.Statistics()
+	if stats.PacketsRecv > 0 {
+		return []CheckResult{pass(fmt.Sprintf("VM is bereikbaar op %s (ping, %v)", c.Target, stats.AvgRtt))}
 	}
 	return []CheckResult{fail(
 		fmt.Sprintf("VM is niet bereikbaar op %s", c.Target),
-		"Kan geen TCP-verbinding maken op poort 22, 80 of 443",
+		"Ping naar de VM mislukt -- 0 pakketten ontvangen",
 	)}
 }
 
