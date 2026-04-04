@@ -62,7 +62,7 @@ type Model struct {
 	idIndex      map[string]int // check ID -> index in groups
 	spinner      spinner.Model
 	viewport     viewport.Model
-	running      int  // number of currently running checks
+	running      int // number of currently running checks
 	done         bool
 	passed       int
 	failed       int

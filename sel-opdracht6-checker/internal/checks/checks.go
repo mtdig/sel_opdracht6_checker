@@ -96,7 +96,7 @@ func NewCfg(target, localUser string, sec map[string]string) *Cfg {
 // CheckDef describes a named check that produces results.
 type CheckDef struct {
 	ID      string
-	Name    string   // human-readable description shown in the TUI
+	Name    string // human-readable description shown in the TUI
 	Section string
 	Deps    []string // IDs of checks that must complete before this one
 	Proto   string   // protocol tested (ICMP, TCP/SSH, HTTPS, HTTP, TCP, UDP, SSH, SFTP)
