@@ -98,29 +98,35 @@ type CheckDef struct {
 	ID      string
 	Name    string // human-readable description shown in the TUI
 	Section string
+	Deps    []string // IDs of checks that must complete before this one
+	Proto   string   // protocol tested (ICMP, TCP/SSH, HTTPS, HTTP, TCP, UDP, SSH, SFTP)
+	Port    string   // port(s) tested, e.g. "22", "443", "30000/udp", "-" for ICMP
 	RunFunc func(c *Cfg) []CheckResult
 }
 
 // AllChecks returns the ordered list of all check definitions.
 func AllChecks() []CheckDef {
 	return []CheckDef{
-		{ID: "ping", Name: "VM bereikbaar via TCP (poort 22/80/443)", Section: "Netwerk", RunFunc: checkPing},
-		{ID: "ssh", Name: "SSH-verbinding op poort 22", Section: "SSH", RunFunc: checkSSH},
-		{ID: "internet", Name: "Internettoegang vanuit de VM (ping 8.8.8.8)", Section: "Netwerk", RunFunc: checkInternet},
-		{ID: "apache", Name: "Apache HTTPS + index.html inhoud", Section: "Apache", RunFunc: checkApacheHTTPS},
-		{ID: "sftp", Name: "SFTP upload + HTTPS roundtrip", Section: "SFTP", RunFunc: checkSFTPUpload},
-		{ID: "mysql_remote", Name: "MySQL remote login op poort 3306", Section: "MySQL", RunFunc: checkMySQLRemote},
-		{ID: "mysql_local", Name: "MySQL lokaal via SSH", Section: "MySQL", RunFunc: checkMySQLLocalViaSSH},
-		{ID: "mysql_admin", Name: "MySQL admin niet bereikbaar van buitenaf", Section: "MySQL", RunFunc: checkMySQLAdminNotRemote},
-		{ID: "wp_reachable", Name: "WordPress bereikbaar op poort 8080", Section: "WordPress", RunFunc: checkWordPressReachable},
-		{ID: "wp_posts", Name: "WordPress minstens 3 posts via REST API", Section: "WordPress", RunFunc: checkWordPressPosts},
-		{ID: "wp_login", Name: "WordPress login via XML-RPC", Section: "WordPress", RunFunc: checkWordPressLogin},
-		{ID: "wp_db", Name: "WordPress database wpdb bereikbaar", Section: "WordPress", RunFunc: checkWordPressDB},
-		{ID: "portainer", Name: "Portainer bereikbaar via HTTPS (poort 9443)", Section: "Portainer", RunFunc: checkPortainer},
-		{ID: "vaultwarden", Name: "Vaultwarden bereikbaar via HTTPS (poort 4123)", Section: "Vaultwarden", RunFunc: checkVaultwarden},
-		{ID: "minetest", Name: "Minetest UDP poort 30000 open", Section: "Minetest", RunFunc: checkMinetest},
-		{ID: "planka", Name: "Planka bereikbaar + login (poort 3000)", Section: "Planka", RunFunc: checkPlanka},
-		{ID: "docker", Name: "Docker containers, volumes & compose", Section: "Docker", RunFunc: checkDockerCompose},
+		// -- No dependencies: run immediately in parallel --
+		{ID: "ping", Name: "VM bereikbaar via ICMP ping", Section: "Netwerk", Proto: "ICMP", Port: "-", RunFunc: checkPing},
+		{ID: "ssh", Name: "SSH-verbinding op poort 22", Section: "SSH", Proto: "TCP/SSH", Port: "22", RunFunc: checkSSH},
+		{ID: "apache", Name: "Apache HTTPS + index.html inhoud", Section: "Apache", Proto: "HTTPS", Port: "443", RunFunc: checkApacheHTTPS},
+		{ID: "wp_reachable", Name: "WordPress bereikbaar op poort 8080", Section: "WordPress", Proto: "HTTP", Port: "8080", RunFunc: checkWordPressReachable},
+		{ID: "wp_posts", Name: "WordPress minstens 3 posts via REST API", Section: "WordPress", Proto: "HTTP", Port: "8080", RunFunc: checkWordPressPosts},
+		{ID: "wp_login", Name: "WordPress login via XML-RPC", Section: "WordPress", Proto: "HTTP", Port: "8080", RunFunc: checkWordPressLogin},
+		{ID: "portainer", Name: "Portainer bereikbaar via HTTPS (poort 9443)", Section: "Portainer", Proto: "HTTPS", Port: "9443", RunFunc: checkPortainer},
+		{ID: "vaultwarden", Name: "Vaultwarden bereikbaar via HTTPS (poort 4123)", Section: "Vaultwarden", Proto: "HTTPS", Port: "4123", RunFunc: checkVaultwarden},
+		{ID: "planka", Name: "Planka bereikbaar + login (poort 3000)", Section: "Planka", Proto: "HTTP", Port: "3000", RunFunc: checkPlanka},
+
+		// -- Depend on SSH --
+		{ID: "internet", Name: "Internettoegang vanuit de VM (ping 8.8.8.8)", Section: "Netwerk", Proto: "ICMP", Port: "-", Deps: []string{"ssh"}, RunFunc: checkInternet},
+		{ID: "sftp", Name: "SFTP upload + HTTPS roundtrip", Section: "SFTP", Proto: "SFTP", Port: "22", Deps: []string{"ssh"}, RunFunc: checkSFTPUpload},
+		{ID: "mysql_remote", Name: "MySQL remote login op poort 3306", Section: "MySQL", Proto: "TCP", Port: "3306", Deps: []string{"ssh"}, RunFunc: checkMySQLRemote},
+		{ID: "mysql_local", Name: "MySQL lokaal via SSH", Section: "MySQL", Proto: "SSH", Port: "22", Deps: []string{"ssh"}, RunFunc: checkMySQLLocalViaSSH},
+		{ID: "mysql_admin", Name: "MySQL admin niet bereikbaar van buitenaf", Section: "MySQL", Proto: "SSH", Port: "3306", Deps: []string{"ssh"}, RunFunc: checkMySQLAdminNotRemote},
+		{ID: "wp_db", Name: "WordPress database wpdb bereikbaar", Section: "WordPress", Proto: "SSH", Port: "22", Deps: []string{"ssh"}, RunFunc: checkWordPressDB},
+		{ID: "minetest", Name: "Minetest UDP poort 30000 open", Section: "Minetest", Proto: "UDP", Port: "30000", Deps: []string{"ssh"}, RunFunc: checkMinetest},
+		{ID: "docker", Name: "Docker containers, volumes & compose", Section: "Docker", Proto: "SSH", Port: "22", Deps: []string{"ssh"}, RunFunc: checkDockerCompose},
 	}
 }
 

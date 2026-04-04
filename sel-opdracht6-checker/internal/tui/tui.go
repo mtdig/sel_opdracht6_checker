@@ -4,6 +4,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -35,6 +36,7 @@ type checkStartMsg struct{ index int }
 type checkDoneMsg struct {
 	index   int
 	results []checks.CheckResult
+	elapsed time.Duration
 }
 type allDoneMsg struct{}
 
@@ -50,30 +52,36 @@ type checkGroup struct {
 	def     checks.CheckDef
 	state   groupState
 	results []checks.CheckResult
+	elapsed time.Duration
 }
 
 type Model struct {
-	cfg      *checks.Cfg
-	version  string
-	groups   []checkGroup
-	spinner  spinner.Model
-	viewport viewport.Model
-	current  int
-	done     bool
-	passed   int
-	failed   int
-	skipped  int
-	quitting bool
-	width    int
-	height   int
-	ready    bool // true once we know the terminal size
+	cfg          *checks.Cfg
+	version      string
+	groups       []checkGroup
+	idIndex      map[string]int // check ID -> index in groups
+	spinner      spinner.Model
+	viewport     viewport.Model
+	running      int // number of currently running checks
+	done         bool
+	passed       int
+	failed       int
+	skipped      int
+	quitting     bool
+	width        int
+	height       int
+	ready        bool // true once we know the terminal size
+	totalStart   time.Time
+	totalElapsed time.Duration
 }
 
 func NewModel(cfg *checks.Cfg, version string) Model {
 	defs := checks.AllChecks()
 	groups := make([]checkGroup, len(defs))
+	idIndex := make(map[string]int, len(defs))
 	for i, d := range defs {
 		groups[i] = checkGroup{def: d, state: groupPending}
+		idIndex[d.ID] = i
 	}
 
 	s := spinner.New()
@@ -81,11 +89,12 @@ func NewModel(cfg *checks.Cfg, version string) Model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return Model{
-		cfg:     cfg,
-		version: version,
-		groups:  groups,
-		spinner: s,
-		current: -1,
+		cfg:        cfg,
+		version:    version,
+		groups:     groups,
+		idIndex:    idIndex,
+		spinner:    s,
+		totalStart: time.Now(),
 	}
 }
 
@@ -95,7 +104,9 @@ func (m Model) ExitCode() int {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.startNext())
+	cmds := []tea.Cmd{m.spinner.Tick}
+	cmds = append(cmds, m.launchReady()...)
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -150,14 +161,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case checkStartMsg:
-		m.current = msg.index
 		m.groups[msg.index].state = groupRunning
+		m.running++
 		return m, m.runCheck(msg.index)
 
 	case checkDoneMsg:
 		g := &m.groups[msg.index]
 		g.state = groupDone
 		g.results = msg.results
+		g.elapsed = msg.elapsed
+		m.running--
 		for _, r := range msg.results {
 			switch r.Status {
 			case checks.StatusPass:
@@ -168,10 +181,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.skipped++
 			}
 		}
-		return m, m.startNext()
+		// Launch any checks whose deps are now satisfied
+		cmds := m.launchReady()
+		if m.running == 0 && len(cmds) == 0 {
+			cmds = append(cmds, func() tea.Msg { return allDoneMsg{} })
+		}
+		return m, tea.Batch(cmds...)
 
 	case allDoneMsg:
 		m.done = true
+		m.totalElapsed = time.Since(m.totalStart)
 		content := m.renderContent()
 		m.viewport.SetContent(content)
 		// Scroll to the bottom so the summary is visible first
@@ -182,25 +201,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) startNext() tea.Cmd {
-	next := -1
+// launchReady returns Cmds for all pending checks whose dependencies are met.
+func (m Model) launchReady() []tea.Cmd {
+	var cmds []tea.Cmd
 	for i, g := range m.groups {
-		if g.state == groupPending {
-			next = i
-			break
+		if g.state != groupPending {
+			continue
+		}
+		if m.depsReady(g.def.Deps) {
+			idx := i
+			cmds = append(cmds, func() tea.Msg { return checkStartMsg{index: idx} })
 		}
 	}
-	if next == -1 {
-		return func() tea.Msg { return allDoneMsg{} }
+	return cmds
+}
+
+// depsReady returns true if every dep ID is in groupDone state.
+func (m Model) depsReady(deps []string) bool {
+	for _, id := range deps {
+		idx, ok := m.idIndex[id]
+		if !ok || m.groups[idx].state != groupDone {
+			return false
+		}
 	}
-	idx := next
-	return func() tea.Msg { return checkStartMsg{index: idx} }
+	return true
 }
 
 func (m Model) runCheck(index int) tea.Cmd {
 	return func() tea.Msg {
+		start := time.Now()
 		results := m.groups[index].def.RunFunc(m.cfg)
-		return checkDoneMsg{index: index, results: results}
+		elapsed := time.Since(start)
+		return checkDoneMsg{index: index, results: results, elapsed: elapsed}
 	}
 }
 
@@ -210,7 +242,7 @@ func (m Model) renderContent() string {
 
 	// Check groups
 	lastSection := ""
-	for i, g := range m.groups {
+	for _, g := range m.groups {
 		if g.def.Section != lastSection {
 			if lastSection != "" {
 				b.WriteString("\n")
@@ -219,27 +251,42 @@ func (m Model) renderContent() string {
 			lastSection = g.def.Section
 		}
 
+		// Proto:port tag for this check
+		var tag string
+		if g.def.Proto != "" {
+			if g.def.Port != "" && g.def.Port != "-" {
+				tag = fmt.Sprintf(" [%s:%s]", g.def.Proto, g.def.Port)
+			} else {
+				tag = fmt.Sprintf(" [%s]", g.def.Proto)
+			}
+		}
+
 		switch g.state {
 		case groupPending:
-			b.WriteString(dimStyle.Render(fmt.Sprintf("  - %s", g.def.Name)) + "\n")
+			b.WriteString(dimStyle.Render(fmt.Sprintf("  - %s%s", g.def.Name, tag)) + "\n")
 
 		case groupRunning:
-			b.WriteString(fmt.Sprintf("  %s %s\n",
-				m.spinner.View(), g.def.Name))
-			_ = i
+			b.WriteString(fmt.Sprintf("  %s %s%s\n",
+				m.spinner.View(), g.def.Name, dimStyle.Render(tag)))
 
 		case groupDone:
-			for _, r := range g.results {
+			timing := dimStyle.Render(fmt.Sprintf(" (%s)", g.elapsed.Round(time.Millisecond)))
+			for i, r := range g.results {
+				// Show timing + tag on the first result line of each group
+				suffix := ""
+				if i == 0 {
+					suffix = dimStyle.Render(tag) + timing
+				}
 				switch r.Status {
 				case checks.StatusPass:
-					b.WriteString(passStyle.Render(fmt.Sprintf("  [PASS] %s", r.Message)) + "\n")
+					b.WriteString(passStyle.Render(fmt.Sprintf("  [PASS] %s", r.Message)) + suffix + "\n")
 				case checks.StatusFail:
-					b.WriteString(failStyle.Render(fmt.Sprintf("  [FAIL] %s", r.Message)) + "\n")
+					b.WriteString(failStyle.Render(fmt.Sprintf("  [FAIL] %s", r.Message)) + suffix + "\n")
 					if r.Detail != "" {
 						b.WriteString(detailStyle.Render(r.Detail) + "\n")
 					}
 				case checks.StatusSkip:
-					b.WriteString(skipStyle.Render(fmt.Sprintf("  [SKIP] %s", r.Message)) + "\n")
+					b.WriteString(skipStyle.Render(fmt.Sprintf("  [SKIP] %s", r.Message)) + suffix + "\n")
 					if r.Detail != "" {
 						b.WriteString(detailStyle.Render(r.Detail) + "\n")
 					}
@@ -263,6 +310,7 @@ func (m Model) renderContent() string {
 		if m.skipped > 0 {
 			sl = append(sl, skipStyle.Render(fmt.Sprintf("Overgeslagen: %d", m.skipped)))
 		}
+		sl = append(sl, dimStyle.Render(fmt.Sprintf("Totale tijd: %s", m.totalElapsed.Round(time.Millisecond))))
 		sl = append(sl, "")
 		if m.failed == 0 {
 			sl = append(sl, passStyle.Bold(true).Render("Alle checks geslaagd!"))
