@@ -1,8 +1,38 @@
 # SELab Opdracht 6 Checker
 
-Automated checker for the SELab opdracht6 assignment.  Builds a docker container for arm64 (linux, macos silicon, win ) and amd64 (linux, windows).
+Automated checker for the SELab opdracht6 assignment.  Available as:
 
-## Usage
+- **Portable binary** (recommended) — single static executable, no dependencies, works on Linux / macOS / Windows × amd64 / arm64
+- **Docker container** — for Linux/macOS hosts that already have Docker
+
+## Option A: Portable binary (recommended)
+
+Download the zip for your platform from the
+[Releases](https://github.com/mtdig/sel-opdracht6-checker/releases) page.
+Unzip — you get the binary + `secrets.env.enc`.  Keep them in the same folder.
+
+### Linux / macOS
+
+```bash
+chmod +x sel-opdracht6-checker-*
+DECRYPT_PASS="letmein!" LOCAL_USER=$USER ./sel-opdracht6-checker-linux-amd64
+```
+
+### Windows (PowerShell)
+
+```powershell
+$env:DECRYPT_PASS="letmein!"
+$env:LOCAL_USER=$env:USERNAME
+.\sel-opdracht6-checker-windows-amd64.exe
+```
+
+### Optional: different target IP
+
+```bash
+DECRYPT_PASS="letmein!" LOCAL_USER=$USER TARGET=192.168.128.20 ./sel-opdracht6-checker-linux-amd64
+```
+
+## Option B: Docker container
 
 Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs):
 
@@ -28,11 +58,13 @@ docker run --rm \
 
 ### Environment variables
 
-| Variable       | Default              | Description                                                         |
-|----------------|----------------------|---------------------------------------------------------------------|
-| `DECRYPT_PASS` | *(required)*         | Passphrase for decrypting the embedded credentials                  |
-| `TARGET`       | `192.168.56.20`      | IP address of the VM                                                |
-| `LOCAL_USER`   | `root` (in container)| Your host username (use `$(whoami)` or `$USER`)                     |
+| Variable         | Default                | Description                                                  |
+|------------------|------------------------|--------------------------------------------------------------|
+| `DECRYPT_PASS`   | *(required)*           | Passphrase for decrypting the embedded credentials           |
+| `TARGET`         | `192.168.56.20`        | IP address of the VM                                         |
+| `LOCAL_USER`     | current OS user        | Your host username (use `$USER` / `$env:USERNAME`)           |
+| `TRACE_DELAY_MS` | `0`                    | Pause (ms) before clearing trace lines (for debugging)       |
+| `SECRETS_FILE`   | auto-detect            | Override path to `secrets.env.enc`                           |
 
 ### Secrets & encryption
 
