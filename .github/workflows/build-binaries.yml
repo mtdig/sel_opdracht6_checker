@@ -42,7 +42,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25"
           cache-dependency-path: sel-opdracht6-checker/go.sum
 
       - name: Build
@@ -52,7 +52,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          # Use tag (v1.2.3 → 1.2.3) or version.txt for branch builds
+          # Use tag (v1.2.3 -> 1.2.3) or version.txt for branch builds
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
           else
