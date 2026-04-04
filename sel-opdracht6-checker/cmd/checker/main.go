@@ -51,7 +51,7 @@ func main() {
 		"WP_USER", "WP_PASS",
 	}
 
-	// -- Load secrets: SECRETS_FILE overrides embedded
+	var sec map[string]string
 	var err error
 
 	if path := os.Getenv("SECRETS_FILE"); path != "" {
@@ -64,7 +64,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// -- Build config & run
 	cfg := checks.NewCfg(target, localUser, sec)
 
 	if jsonMode {
@@ -81,7 +80,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// -- TUI mode (default)
 	model := tui.NewModel(cfg, Version)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	finalModel, err := p.Run()
@@ -90,7 +88,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Clean exit with the final model's exit code
 	if m, ok := finalModel.(tui.Model); ok {
 		os.Exit(m.ExitCode())
 	}
