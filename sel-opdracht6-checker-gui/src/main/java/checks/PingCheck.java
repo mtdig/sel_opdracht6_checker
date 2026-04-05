@@ -4,7 +4,9 @@ import domain.Check;
 import domain.CheckContext;
 import domain.CheckResult;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class PingCheck implements Check {
 
@@ -18,7 +20,7 @@ public class PingCheck implements Check {
     public List<CheckResult> run(CheckContext ctx) {
         try {
             // Use system ping command — InetAddress.isReachable() needs root for ICMP
-            ProcessBuilder pb = new ProcessBuilder("ping", "-c", "1", "-W", "5", ctx.getTarget());
+            ProcessBuilder pb = new ProcessBuilder(buildPingCommand(ctx.getTarget()));
             pb.redirectErrorStream(true);
             Process proc = pb.start();
             int exitCode = proc.waitFor();
@@ -43,5 +45,26 @@ public class PingCheck implements Check {
                     "VM is not reachable at " + ctx.getTarget(),
                     "Ping error: " + e.getMessage()));
         }
+    }
+
+    static List<String> buildPingCommand(String target) {
+        List<String> command = new ArrayList<>();
+        command.add("ping");
+
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        if (os.contains("win")) {
+            command.add("-n");
+            command.add("1");
+            command.add("-w");
+            command.add("5000"); // milliseconds
+        } else {
+            command.add("-c");
+            command.add("1");
+            command.add("-W");
+            command.add("5"); // seconds
+        }
+
+        command.add(target);
+        return command;
     }
 }
