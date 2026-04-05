@@ -49,7 +49,14 @@ pub const SshSession = struct {
 
         c.libssh2_session_set_timeout(session, 15000);
 
-        if (c.libssh2_session_handshake(session, sock) != 0) return SshError.HandshakeFailed;
+        // libssh2_socket_t is c_ulonglong on Windows but std.posix.socket_t
+        // is an opaque pointer – cast via @intFromPtr.  On POSIX both are
+        // plain ints so the cast is a no-op widening.
+        const raw_sock: c.libssh2_socket_t = if (comptime compat.is_windows)
+            @intFromPtr(sock)
+        else
+            sock;
+        if (c.libssh2_session_handshake(session, raw_sock) != 0) return SshError.HandshakeFailed;
 
         // Password auth
         if (c.libssh2_userauth_password_ex(
