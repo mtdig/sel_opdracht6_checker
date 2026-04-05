@@ -85,11 +85,14 @@ jobs:
           $curlDir = (Get-ChildItem -Path deps -Recurse -Directory -Filter "curl-*-win64-mingw" | Select-Object -First 1).FullName
           Remove-Item -Path "$curlDir\lib\libcurl.a" -ErrorAction SilentlyContinue
 
-          # If there is no import lib (.dll.a), copy the DLL into lib/
-          # so Zig's linker can link it directly
-          if (-not (Test-Path "$curlDir\lib\libcurl.dll.a")) {
+          # Zig searches for libcurl.a, curl.lib, or curl.dll — not
+          # libcurl.dll.a.  Rename the import lib so Zig finds it.
+          if (Test-Path "$curlDir\lib\libcurl.dll.a") {
+            Rename-Item "$curlDir\lib\libcurl.dll.a" "libcurl.a"
+          } else {
+            # No import lib — copy the DLL as curl.dll so Zig can link it
             $dll = (Get-ChildItem -Path "$curlDir\bin" -Filter "libcurl*.dll" | Select-Object -First 1).FullName
-            if ($dll) { Copy-Item $dll "$curlDir\lib\" }
+            if ($dll) { Copy-Item $dll "$curlDir\lib\curl.dll" }
           }
 
       # ── Build ──
