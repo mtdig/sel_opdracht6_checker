@@ -2,11 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const checks_mod = @import("checks.zig");
 const crypto = @import("crypto.zig");
-
-const c = @cImport({
-    @cInclude("SDL2/SDL.h");
-    @cInclude("SDL2/SDL_ttf.h");
-});
+const c = @import("c.zig");
 
 const CheckStatus = types.CheckStatus;
 
@@ -96,7 +92,7 @@ pub const Gui = struct {
         gui.target_len = default_target.len;
 
         // Default user
-        const user = std.posix.getenv("USER") orelse "student";
+        const user = c.sliceFromSentinel(c.sel_getenv("USER")) orelse "student";
         const ulen = @min(user.len, gui.user_buf.len);
         @memcpy(gui.user_buf[0..ulen], user[0..ulen]);
         gui.user_len = ulen;
@@ -110,7 +106,7 @@ pub const Gui = struct {
     }
 
     pub fn run(self: *Gui) void {
-        if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
+        if (c.SDL_Init(@intCast(c.sel_SDL_INIT_VIDEO())) != 0) {
             std.debug.print("SDL_Init failed: {s}\n", .{c.SDL_GetError()});
             return;
         }
@@ -125,7 +121,7 @@ pub const Gui = struct {
         // Load font: try SEL_FONT_PATH env, then fc-match, then common paths
         const font_path: [*:0]const u8 = blk: {
             // 1. Environment variable (set by nix develop)
-            if (std.posix.getenv("SEL_FONT_PATH")) |p| break :blk p.ptr;
+            if (c.sel_getenv("SEL_FONT_PATH")) |p| break :blk p;
 
             // 2. Ask fontconfig at runtime
             if (fcMatch(self.alloc)) |p| break :blk p;
@@ -157,11 +153,11 @@ pub const Gui = struct {
 
         self.window = c.SDL_CreateWindow(
             "SELab Opdracht 6 Checker",
-            c.SDL_WINDOWPOS_CENTERED,
-            c.SDL_WINDOWPOS_CENTERED,
+            c.sel_SDL_WINDOWPOS_CENTERED(),
+            c.sel_SDL_WINDOWPOS_CENTERED(),
             WIN_W,
             WIN_H,
-            c.SDL_WINDOW_SHOWN | c.SDL_WINDOW_RESIZABLE,
+            @intCast(c.sel_SDL_WINDOW_SHOWN() | c.sel_SDL_WINDOW_RESIZABLE()),
         );
         if (self.window == null) {
             std.debug.print("SDL_CreateWindow failed: {s}\n", .{c.SDL_GetError()});
@@ -169,7 +165,7 @@ pub const Gui = struct {
         }
         defer c.SDL_DestroyWindow(self.window);
 
-        self.renderer = c.SDL_CreateRenderer(self.window, -1, c.SDL_RENDERER_ACCELERATED | c.SDL_RENDERER_PRESENTVSYNC);
+        self.renderer = c.SDL_CreateRenderer(self.window, -1, @intCast(c.sel_SDL_RENDERER_ACCELERATED() | c.sel_SDL_RENDERER_PRESENTVSYNC()));
         if (self.renderer == null) {
             std.debug.print("SDL_CreateRenderer failed: {s}\n", .{c.SDL_GetError()});
             return;
@@ -177,7 +173,7 @@ pub const Gui = struct {
         defer c.SDL_DestroyRenderer(self.renderer);
 
         // Enable alpha blending
-        _ = c.SDL_SetRenderDrawBlendMode(self.renderer, c.SDL_BLENDMODE_BLEND);
+        _ = c.SDL_SetRenderDrawBlendMode(self.renderer, c.sel_SDL_BLENDMODE_BLEND());
 
         c.SDL_StartTextInput();
 
@@ -186,29 +182,27 @@ pub const Gui = struct {
             self.mouse_clicked = false;
             var ev: c.SDL_Event = undefined;
             while (c.SDL_PollEvent(&ev) != 0) {
-                switch (ev.type) {
-                    c.SDL_QUIT => quit = true,
-                    c.SDL_MOUSEBUTTONDOWN => {
-                        if (ev.button.button == c.SDL_BUTTON_LEFT) {
-                            self.mouse_x = ev.button.x;
-                            self.mouse_y = ev.button.y;
-                            self.mouse_clicked = true;
+                const evtype = c.sel_event_type(&ev);
+                if (evtype == c.sel_SDL_QUIT()) {
+                    quit = true;
+                } else if (evtype == c.sel_SDL_MOUSEBUTTONDOWN()) {
+                    if (c.sel_event_button_button(&ev) == c.sel_SDL_BUTTON_LEFT()) {
+                        self.mouse_x = c.sel_event_button_x(&ev);
+                        self.mouse_y = c.sel_event_button_y(&ev);
+                        self.mouse_clicked = true;
+                    }
+                } else if (evtype == c.sel_SDL_MOUSEWHEEL()) {
+                    self.scroll_y -= c.sel_event_wheel_y(&ev) * 30;
+                    if (self.scroll_y < 0) self.scroll_y = 0;
+                } else if (evtype == c.sel_SDL_TEXTINPUT()) {
+                    if (self.active_input != 0) {
+                        const ch = c.sel_event_text_char(&ev);
+                        if (ch > 0) {
+                            self.appendChar(ch);
                         }
-                    },
-                    c.SDL_MOUSEWHEEL => {
-                        self.scroll_y -= ev.wheel.y * 30;
-                        if (self.scroll_y < 0) self.scroll_y = 0;
-                    },
-                    c.SDL_TEXTINPUT => {
-                        if (self.active_input != 0) {
-                            const ch = ev.text.text[0];
-                            if (ch > 0) {
-                                self.appendChar(ch);
-                            }
-                        }
-                    },
-                    c.SDL_KEYDOWN => self.handleKeyDown(ev.key.keysym),
-                    else => {},
+                    }
+                } else if (evtype == c.sel_SDL_KEYDOWN()) {
+                    self.handleKeyDown(c.sel_event_key_sym(&ev));
                 }
             }
 
@@ -262,46 +256,37 @@ pub const Gui = struct {
         }
     }
 
-    fn handleKeyDown(self: *Gui, keysym: c.SDL_Keysym) void {
+    fn handleKeyDown(self: *Gui, keysym: c_int) void {
         if (self.active_input != 0) {
-            switch (keysym.sym) {
-                c.SDLK_BACKSPACE => {
-                    switch (self.active_input) {
-                        1 => if (self.target_len > 0) {
-                            self.target_len -= 1;
-                        },
-                        2 => if (self.user_len > 0) {
-                            self.user_len -= 1;
-                        },
-                        3 => if (self.pass_len > 0) {
-                            self.pass_len -= 1;
-                        },
-                        else => {},
-                    }
-                },
-                c.SDLK_TAB => {
-                    self.active_input = if (self.active_input >= 3) 1 else self.active_input + 1;
-                },
-                c.SDLK_RETURN => {
-                    self.active_input = 0;
-                },
-                c.SDLK_ESCAPE => {
-                    self.active_input = 0;
-                },
-                else => {},
+            if (keysym == c.sel_SDLK_BACKSPACE()) {
+                switch (self.active_input) {
+                    1 => if (self.target_len > 0) {
+                        self.target_len -= 1;
+                    },
+                    2 => if (self.user_len > 0) {
+                        self.user_len -= 1;
+                    },
+                    3 => if (self.pass_len > 0) {
+                        self.pass_len -= 1;
+                    },
+                    else => {},
+                }
+            } else if (keysym == c.sel_SDLK_TAB()) {
+                self.active_input = if (self.active_input >= 3) 1 else self.active_input + 1;
+            } else if (keysym == c.sel_SDLK_RETURN()) {
+                self.active_input = 0;
+            } else if (keysym == c.sel_SDLK_ESCAPE()) {
+                self.active_input = 0;
             }
             return;
         }
 
         // Non-input keys
-        switch (keysym.sym) {
-            c.SDLK_ESCAPE => {
-                if (self.current_view != .main) {
-                    self.current_view = .main;
-                    self.scroll_y = 0;
-                }
-            },
-            else => {},
+        if (keysym == c.sel_SDLK_ESCAPE()) {
+            if (self.current_view != .main) {
+                self.current_view = .main;
+                self.scroll_y = 0;
+            }
         }
     }
 
@@ -389,9 +374,7 @@ pub const Gui = struct {
             self.pending_run_all = true;
         }
         if (self.drawButton(15, btn_y + 40, SIDE_W - 30, 32, "Exit", BTN_DANGER, false)) {
-            var ev: c.SDL_Event = undefined;
-            ev.type = c.SDL_QUIT;
-            _ = c.SDL_PushEvent(&ev);
+            c.sel_push_quit();
         }
     }
 
@@ -896,11 +879,11 @@ pub const Gui = struct {
         const len = @min(text.len, buf.len - 1);
         @memcpy(buf[0..len], text[0..len]);
         buf[len] = 0;
-        const surface = c.TTF_RenderText_Blended(font, &buf, col) orelse return;
+        const surface = c.sel_TTF_RenderText(font, @ptrCast(&buf), col.r, col.g, col.b, col.a) orelse return;
         defer c.SDL_FreeSurface(surface);
         const texture = c.SDL_CreateTextureFromSurface(self.renderer, surface) orelse return;
         defer c.SDL_DestroyTexture(texture);
-        var dst = c.SDL_Rect{ .x = x, .y = y, .w = surface.*.w, .h = surface.*.h };
+        const dst = c.SDL_Rect{ .x = x, .y = y, .w = surface.w, .h = surface.h };
         _ = c.SDL_RenderCopy(self.renderer, texture, null, &dst);
     }
 };
@@ -913,13 +896,13 @@ fn setDrawColor(renderer: *c.SDL_Renderer, col: Color) void {
 
 fn fillRect(renderer: *c.SDL_Renderer, x: i32, y: i32, w: i32, h: i32, col: Color) void {
     setDrawColor(renderer, col);
-    var rect = c.SDL_Rect{ .x = x, .y = y, .w = w, .h = h };
+    const rect = c.SDL_Rect{ .x = x, .y = y, .w = w, .h = h };
     _ = c.SDL_RenderFillRect(renderer, &rect);
 }
 
 fn drawRectOutline(renderer: *c.SDL_Renderer, x: i32, y: i32, w: i32, h: i32, col: Color) void {
     setDrawColor(renderer, col);
-    var rect = c.SDL_Rect{ .x = x, .y = y, .w = w, .h = h };
+    const rect = c.SDL_Rect{ .x = x, .y = y, .w = w, .h = h };
     _ = c.SDL_RenderDrawRect(renderer, &rect);
 }
 
@@ -973,23 +956,13 @@ fn resultRowColor(status: CheckStatus) Color {
 
 /// Use fontconfig `fc-match` to discover a monospace font path at runtime.
 fn fcMatch(alloc: std.mem.Allocator) ?[*:0]const u8 {
-    const result = std.process.Child.run(.{
-        .allocator = alloc,
-        .argv = &.{ "fc-match", "--format=%{file}", "monospace" },
-    }) catch return null;
-    defer alloc.free(result.stderr);
+    var buf: [1024]u8 = undefined;
+    var out_len: usize = 0;
+    const ret = c.sel_run_command("fc-match --format=%{file} monospace", &buf, buf.len, &out_len);
+    if (ret != 0 or out_len == 0) return null;
 
-    if (result.term != .Exited or result.stdout.len == 0) {
-        alloc.free(result.stdout);
-        return null;
-    }
-    // stdout is a null-terminated alloc'd slice from Child.run;
-    // we need a sentinel-terminated pointer. Append a sentinel.
-    const with_sentinel = alloc.allocSentinel(u8, result.stdout.len, 0) catch {
-        alloc.free(result.stdout);
-        return null;
-    };
-    @memcpy(with_sentinel[0..result.stdout.len], result.stdout);
-    alloc.free(result.stdout);
+    // Copy to a sentinel-terminated allocation
+    const with_sentinel = alloc.allocSentinel(u8, out_len, 0) catch return null;
+    @memcpy(with_sentinel[0..out_len], buf[0..out_len]);
     return with_sentinel.ptr;
 }

@@ -4,17 +4,19 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    zig-overlay.url = "github:mitchellh/zig-overlay";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, zig-overlay }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        zigpkgs = zig-overlay.packages.${system};
       in
       {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            zig
+            zigpkgs.master
 
             # SDL2
             SDL2.dev

@@ -1,8 +1,5 @@
 const std = @import("std");
-
-const c = @cImport({
-    @cInclude("curl/curl.h");
-});
+const c = @import("c.zig");
 
 pub const HttpError = error{
     ConnectionFailed,
@@ -82,44 +79,44 @@ fn curlRequest(
     const url_z = alloc.dupeZ(u8, url) catch return HttpError.OutOfMemory;
     defer alloc.free(url_z);
 
-    _ = c.curl_easy_setopt(handle, c.CURLOPT_URL, url_z.ptr);
+    _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_URL(), url_z.ptr);
 
     // Disable TLS certificate verification (self-signed certs)
-    _ = c.curl_easy_setopt(handle, c.CURLOPT_SSL_VERIFYPEER, @as(c_long, 0));
-    _ = c.curl_easy_setopt(handle, c.CURLOPT_SSL_VERIFYHOST, @as(c_long, 0));
+    _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_SSL_VERIFYPEER(), @as(c_long, 0));
+    _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_SSL_VERIFYHOST(), @as(c_long, 0));
 
     // Follow redirects (up to 5)
-    _ = c.curl_easy_setopt(handle, c.CURLOPT_FOLLOWLOCATION, @as(c_long, 1));
-    _ = c.curl_easy_setopt(handle, c.CURLOPT_MAXREDIRS, @as(c_long, 5));
+    _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_FOLLOWLOCATION(), @as(c_long, 1));
+    _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_MAXREDIRS(), @as(c_long, 5));
 
     // Timeout
-    _ = c.curl_easy_setopt(handle, c.CURLOPT_TIMEOUT, @as(c_long, 15));
-    _ = c.curl_easy_setopt(handle, c.CURLOPT_CONNECTTIMEOUT, @as(c_long, 10));
+    _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_TIMEOUT(), @as(c_long, 15));
+    _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_CONNECTTIMEOUT(), @as(c_long, 10));
 
     // Method
     if (std.mem.eql(u8, method, "POST")) {
-        _ = c.curl_easy_setopt(handle, c.CURLOPT_POST, @as(c_long, 1));
+        _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_POST(), @as(c_long, 1));
     } else if (!std.mem.eql(u8, method, "GET")) {
         const method_z = alloc.dupeZ(u8, method) catch return HttpError.OutOfMemory;
         defer alloc.free(method_z);
-        _ = c.curl_easy_setopt(handle, c.CURLOPT_CUSTOMREQUEST, method_z.ptr);
+        _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_CUSTOMREQUEST(), method_z.ptr);
     }
 
     // Headers
-    var headers_list: [*c]c.struct_curl_slist = null;
+    var headers_list: ?*c.curl_slist = null;
     defer if (headers_list != null) c.curl_slist_free_all(headers_list);
 
     if (content_type) |ct| {
         const hdr = std.fmt.allocPrint(alloc, "Content-Type: {s}\x00", .{ct}) catch return HttpError.OutOfMemory;
         defer alloc.free(hdr);
-        headers_list = c.curl_slist_append(headers_list, hdr.ptr);
-        _ = c.curl_easy_setopt(handle, c.CURLOPT_HTTPHEADER, headers_list);
+        headers_list = c.curl_slist_append(headers_list, @ptrCast(hdr.ptr));
+        _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_HTTPHEADER(), headers_list);
     }
 
     // POST body
     if (body) |b| {
-        _ = c.curl_easy_setopt(handle, c.CURLOPT_POSTFIELDSIZE, @as(c_long, @intCast(b.len)));
-        _ = c.curl_easy_setopt(handle, c.CURLOPT_POSTFIELDS, b.ptr);
+        _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_POSTFIELDSIZE(), @as(c_long, @intCast(b.len)));
+        _ = c.curl_easy_setopt(handle, c.sel_CURLOPT_POSTFIELDS(), b.ptr);
     }
 
     // Write callback

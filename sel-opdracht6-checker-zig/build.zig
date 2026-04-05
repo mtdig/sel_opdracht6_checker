@@ -18,8 +18,8 @@ pub fn build(b: *std.Build) !void {
 
     const mbedtls_include = mbedtls_dep.path("include");
     const mbedtls_library_inc = mbedtls_dep.path("library");
-    mbedtls_lib.addIncludePath(mbedtls_include);
-    mbedtls_lib.addIncludePath(mbedtls_library_inc);
+    mbedtls_lib.root_module.addIncludePath(mbedtls_include);
+    mbedtls_lib.root_module.addIncludePath(mbedtls_library_inc);
 
     const mbedtls_sources = [_][]const u8{
         "library/aes.c",        "library/aesce.c",      "library/aesni.c",
@@ -63,7 +63,7 @@ pub fn build(b: *std.Build) !void {
         "library/x509write_crt.c", "library/x509write_csr.c",
     };
     for (mbedtls_sources) |src| {
-        mbedtls_lib.addCSourceFile(.{
+        mbedtls_lib.root_module.addCSourceFile(.{
             .file = mbedtls_dep.path(src),
             .flags = &.{"-fno-sanitize=undefined"},
         });
@@ -80,9 +80,9 @@ pub fn build(b: *std.Build) !void {
             .link_libc = true,
         }),
     });
-    libssh2_lib.addIncludePath(mbedtls_include);
-    libssh2_lib.addIncludePath(libssh2_dep.path("include"));
-    libssh2_lib.addIncludePath(libssh2_dep.path("src"));
+    libssh2_lib.root_module.addIncludePath(mbedtls_include);
+    libssh2_lib.root_module.addIncludePath(libssh2_dep.path("include"));
+    libssh2_lib.root_module.addIncludePath(libssh2_dep.path("src"));
 
     const config_wf = b.addWriteFiles();
     _ = config_wf.add("libssh2_config.h",
@@ -115,7 +115,7 @@ pub fn build(b: *std.Build) !void {
         \\#endif
     );
     const config_dir = config_wf.getDirectory();
-    libssh2_lib.addIncludePath(config_dir);
+    libssh2_lib.root_module.addIncludePath(config_dir);
 
     const libssh2_flags: []const []const u8 = &.{ "-DLIBSSH2_MBEDTLS", "-DHAVE_CONFIG_H", "-fno-sanitize=undefined" };
     const libssh2_sources = [_][]const u8{
@@ -128,36 +128,44 @@ pub fn build(b: *std.Build) !void {
         "src/transport.c", "src/userauth.c",     "src/userauth_kbd_packet.c", "src/version.c",
     };
     for (libssh2_sources) |src| {
-        libssh2_lib.addCSourceFile(.{
+        libssh2_lib.root_module.addCSourceFile(.{
             .file = libssh2_dep.path(src),
             .flags = libssh2_flags,
         });
     }
 
     // ── Main executable ──
-    const exe = b.addExecutable(.{
-        .name = "sel-checker",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+    const exe_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
     });
 
-    exe.linkLibrary(mbedtls_lib);
-    exe.linkLibrary(libssh2_lib);
+    exe_mod.linkLibrary(mbedtls_lib);
+    exe_mod.linkLibrary(libssh2_lib);
 
     // SDL2 + SDL2_ttf (system, from nix develop)
-    exe.linkSystemLibrary("SDL2");
-    exe.linkSystemLibrary("SDL2_ttf");
+    exe_mod.linkSystemLibrary("SDL2", .{});
+    exe_mod.linkSystemLibrary("SDL2_ttf", .{});
 
     // libcurl for HTTP/HTTPS with TLS cert skip
-    exe.linkSystemLibrary("curl");
+    exe_mod.linkSystemLibrary("curl", .{});
 
-    exe.addIncludePath(mbedtls_include);
-    exe.addIncludePath(libssh2_dep.path("include"));
-    exe.addIncludePath(config_dir);
+    exe_mod.addIncludePath(mbedtls_include);
+    exe_mod.addIncludePath(libssh2_dep.path("include"));
+    exe_mod.addIncludePath(config_dir);
+
+    // C bindings shim (avoids @cImport which fails on aarch64 in Zig 0.16-dev)
+    exe_mod.addCSourceFile(.{
+        .file = b.path("src/c_bindings.c"),
+        .flags = &.{"-fno-sanitize=undefined"},
+    });
+
+    const exe = b.addExecutable(.{
+        .name = "sel-checker",
+        .root_module = exe_mod,
+    });
 
     b.installArtifact(exe);
 
@@ -168,22 +176,29 @@ pub fn build(b: *std.Build) !void {
     if (b.args) |args| run_cmd.addArgs(args);
 
     // Tests
-    const exe_tests = b.addTest(.{
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .link_libc = true,
-        }),
+    const test_mod = b.createModule(.{
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
     });
-    exe_tests.linkLibrary(mbedtls_lib);
-    exe_tests.linkLibrary(libssh2_lib);
-    exe_tests.linkSystemLibrary("SDL2");
-    exe_tests.linkSystemLibrary("SDL2_ttf");
-    exe_tests.linkSystemLibrary("curl");
-    exe_tests.addIncludePath(mbedtls_include);
-    exe_tests.addIncludePath(libssh2_dep.path("include"));
-    exe_tests.addIncludePath(config_dir);
+
+    test_mod.linkLibrary(mbedtls_lib);
+    test_mod.linkLibrary(libssh2_lib);
+    test_mod.linkSystemLibrary("SDL2", .{});
+    test_mod.linkSystemLibrary("SDL2_ttf", .{});
+    test_mod.linkSystemLibrary("curl", .{});
+    test_mod.addIncludePath(mbedtls_include);
+    test_mod.addIncludePath(libssh2_dep.path("include"));
+    test_mod.addIncludePath(config_dir);
+    test_mod.addCSourceFile(.{
+        .file = b.path("src/c_bindings.c"),
+        .flags = &.{"-fno-sanitize=undefined"},
+    });
+
+    const exe_tests = b.addTest(.{
+        .root_module = test_mod,
+    });
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
