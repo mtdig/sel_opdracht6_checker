@@ -5,3 +5,6 @@ sel-opdracht6-checker/sel-opdracht6-checker-*
 sel-opdracht6-checker/releases/
 .idea/
 target/
+
+.zig-cache/
+zig-output/
