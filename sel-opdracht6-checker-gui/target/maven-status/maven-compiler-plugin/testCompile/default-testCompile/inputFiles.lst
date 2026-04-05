@@ -1,0 +1,10 @@
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/checks/AbstractSSHDependentCheckTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/checks/CheckMetadataTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/CheckContextTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/CheckRegistryTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/CheckResultTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/CheckStateTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/CheckStatusTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/DomainControllerTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/ExceptionHierarchyTest.java
+/home/jeroen/edu/projects/sel_opdracht6_checker/sel-opdracht6-checker-gui/src/test/java/domain/SecretsDecryptorTest.java
