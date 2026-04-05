@@ -79,6 +79,19 @@ jobs:
           Invoke-WebRequest -Uri "https://curl.se/windows/dl-$CURL_VERSION/curl-$CURL_VERSION-win64-mingw.zip" -OutFile curl.zip
           Expand-Archive curl.zip -DestinationPath deps
 
+          # The curl.se static libcurl.a has hundreds of transitive deps
+          # (OpenSSL, nghttp2, zlib, brotli …). Remove it so Zig links
+          # against the DLL import lib instead.
+          $curlDir = (Get-ChildItem -Path deps -Recurse -Directory -Filter "curl-*-win64-mingw" | Select-Object -First 1).FullName
+          Remove-Item -Path "$curlDir\lib\libcurl.a" -ErrorAction SilentlyContinue
+
+          # If there is no import lib (.dll.a), copy the DLL into lib/
+          # so Zig's linker can link it directly
+          if (-not (Test-Path "$curlDir\lib\libcurl.dll.a")) {
+            $dll = (Get-ChildItem -Path "$curlDir\bin" -Filter "libcurl*.dll" | Select-Object -First 1).FullName
+            if ($dll) { Copy-Item $dll "$curlDir\lib\" }
+          }
+
       # ── Build ──
       - name: Build (Linux / macOS)
         if: runner.os != 'Windows'
