@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const checks_mod = @import("checks.zig");
 const crypto = @import("crypto.zig");
+const compat = @import("compat.zig");
 
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
@@ -96,7 +97,7 @@ pub const Gui = struct {
         gui.target_len = default_target.len;
 
         // Default user
-        const user = std.posix.getenv("USER") orelse "student";
+        const user = compat.getenv("USER") orelse compat.getenv("USERNAME") orelse "student";
         const ulen = @min(user.len, gui.user_buf.len);
         @memcpy(gui.user_buf[0..ulen], user[0..ulen]);
         gui.user_len = ulen;
@@ -125,13 +126,24 @@ pub const Gui = struct {
         // Load font: try SEL_FONT_PATH env, then fc-match, then common paths
         const font_path: [*:0]const u8 = blk: {
             // 1. Environment variable (set by nix develop)
-            if (std.posix.getenv("SEL_FONT_PATH")) |p| break :blk p.ptr;
+            if (compat.getenv("SEL_FONT_PATH")) |p| {
+                const sentinel = self.alloc.allocSentinel(u8, p.len, 0) catch break :blk @as([*:0]const u8, @ptrCast(p.ptr));
+                @memcpy(sentinel[0..p.len], p);
+                break :blk sentinel.ptr;
+            }
 
-            // 2. Ask fontconfig at runtime
-            if (fcMatch(self.alloc)) |p| break :blk p;
+            // 2. Ask fontconfig at runtime (not available on Windows)
+            if (!compat.is_windows) {
+                if (fcMatch(self.alloc)) |p| break :blk p;
+            }
 
             // 3. Common hardcoded paths
-            const fallbacks = [_][*:0]const u8{
+            const fallbacks = if (compat.is_windows) [_][*:0]const u8{
+                "C:\\Windows\\Fonts\\consola.ttf",
+                "C:\\Windows\\Fonts\\cour.ttf",
+                "C:\\Windows\\Fonts\\lucon.ttf",
+                "C:\\Windows\\Fonts\\arial.ttf",
+            } else [_][*:0]const u8{
                 "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
                 "/usr/share/fonts/liberation-mono/LiberationMono-Regular.ttf",
                 "/usr/share/fonts/truetype/LiberationMono-Regular.ttf",
@@ -143,7 +155,10 @@ pub const Gui = struct {
             for (fallbacks) |fp| {
                 if (c.TTF_OpenFont(fp, FONT_SZ)) |_| break :blk fp;
             }
-            break :blk "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf";
+            break :blk if (compat.is_windows)
+                "C:\\Windows\\Fonts\\consola.ttf"
+            else
+                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf";
         };
 
         self.font = c.TTF_OpenFont(font_path, FONT_SZ);

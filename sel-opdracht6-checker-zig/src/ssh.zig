@@ -1,4 +1,5 @@
 const std = @import("std");
+const compat = @import("compat.zig");
 const c = @cImport({
     @cInclude("libssh2.h");
     @cInclude("libssh2_sftp.h");
@@ -34,12 +35,11 @@ pub const SshSession = struct {
             std.posix.SOCK.STREAM,
             std.posix.IPPROTO.TCP,
         ) catch return SshError.SocketError;
-        errdefer std.posix.close(sock);
+        errdefer compat.closeSocket(sock);
 
         // Set a connect timeout via SO_SNDTIMEO
-        const timeout = std.posix.timeval{ .sec = 10, .usec = 0 };
-        std.posix.setsockopt(sock, std.posix.SOL.SOCKET, std.posix.SO.SNDTIMEO, std.mem.asBytes(&timeout)) catch {};
-        std.posix.setsockopt(sock, std.posix.SOL.SOCKET, std.posix.SO.RCVTIMEO, std.mem.asBytes(&timeout)) catch {};
+        compat.setSockTimeout(sock, std.posix.SO.SNDTIMEO, 10);
+        compat.setSockTimeout(sock, std.posix.SO.RCVTIMEO, 10);
 
         std.posix.connect(sock, &addr.any, addr.getOsSockLen()) catch return SshError.ConnectFailed;
 
@@ -129,7 +129,7 @@ pub const SshSession = struct {
     pub fn close(self: *SshSession) void {
         _ = c.libssh2_session_disconnect(self.session, "bye");
         _ = c.libssh2_session_free(self.session);
-        std.posix.close(self.sock);
+        compat.closeSocket(self.sock);
         self.ok = false;
     }
 };

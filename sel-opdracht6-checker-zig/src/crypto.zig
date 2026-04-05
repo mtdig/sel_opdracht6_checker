@@ -1,5 +1,6 @@
 const std = @import("std");
 const types = @import("types.zig");
+const compat = @import("compat.zig");
 
 pub const DecryptError = error{
     DataTooShort,
@@ -22,7 +23,9 @@ pub fn decryptSecrets(alloc: std.mem.Allocator, passphrase: []const u8) DecryptE
 
 fn decrypt(alloc: std.mem.Allocator, data: []const u8, passphrase: []const u8) ![]u8 {
     // Write encrypted data to a temp file, invoke openssl to decrypt
-    const tmp_path = "/tmp/.sel-checker-enc.tmp";
+    const tmp_dir = compat.tmpDir();
+    const tmp_path = try std.fmt.allocPrint(alloc, "{s}{c}.sel-checker-enc.tmp", .{ tmp_dir, std.fs.path.sep });
+    defer alloc.free(tmp_path);
 
     // Write encrypted data
     {

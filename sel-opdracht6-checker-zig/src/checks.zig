@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const ssh_mod = @import("ssh.zig");
 const http = @import("http.zig");
+const compat = @import("compat.zig");
 
 const CheckResult = types.CheckResult;
 const SshSession = ssh_mod.SshSession;
@@ -83,9 +84,14 @@ fn requireSsh(ctx: *CheckContext, state: *types.CheckState, name: []const u8) bo
 
 fn checkPing(ctx: *CheckContext, state: *types.CheckState) void {
     const target = ctx.config.target;
+    // Windows: ping -n 1 -w 5000; POSIX: ping -c 1 -W 5
+    const argv: []const []const u8 = if (compat.is_windows)
+        &.{ "ping", "-n", "1", "-w", "5000", target }
+    else
+        &.{ "ping", "-c", "1", "-W", "5", target };
     const result = std.process.Child.run(.{
         .allocator = ctx.alloc,
-        .argv = &.{ "ping", "-c", "1", "-W", "5", target },
+        .argv = argv,
     }) catch {
         addResult(state, CheckResult.failed(
             std.fmt.allocPrint(ctx.alloc, "VM is not reachable at {s}", .{target}) catch "Ping failed",
@@ -335,10 +341,9 @@ fn checkMysqlRemote(ctx: *CheckContext, state: *types.CheckState) void {
         ));
         return;
     };
-    defer std.posix.close(sock);
+    defer compat.closeSocket(sock);
 
-    const timeout = std.posix.timeval{ .sec = 5, .usec = 0 };
-    std.posix.setsockopt(sock, std.posix.SOL.SOCKET, std.posix.SO.SNDTIMEO, std.mem.asBytes(&timeout)) catch {};
+    compat.setSockTimeout(sock, std.posix.SO.SNDTIMEO, 5);
 
     std.posix.connect(sock, &addr.any, addr.getOsSockLen()) catch {
         addResult(state, CheckResult.failed(

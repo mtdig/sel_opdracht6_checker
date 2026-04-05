@@ -84,8 +84,28 @@ pub fn build(b: *std.Build) !void {
     libssh2_lib.addIncludePath(libssh2_dep.path("include"));
     libssh2_lib.addIncludePath(libssh2_dep.path("src"));
 
+    const is_windows = target.result.os.tag == .windows;
+
     const config_wf = b.addWriteFiles();
-    _ = config_wf.add("libssh2_config.h",
+    _ = config_wf.add("libssh2_config.h", if (is_windows)
+        \\#ifndef LIBSSH2_CONFIG_H
+        \\#define LIBSSH2_CONFIG_H
+        \\#define HAVE_INTTYPES_H 1
+        \\#define HAVE_STDLIB_H 1
+        \\#define HAVE_FCNTL_H 1
+        \\#define HAVE_ERRNO_H 1
+        \\#define HAVE_STDIO_H 1
+        \\#define HAVE_STRING_H 1
+        \\#define HAVE_STDINT_H 1
+        \\#define HAVE_STRTOLL 1
+        \\#define HAVE_SNPRINTF 1
+        \\#define HAVE_SELECT 1
+        \\#define HAVE_WINSOCK2_H 1
+        \\#define HAVE_WS2TCPIP_H 1
+        \\#define HAVE_WINDOWS_H 1
+        \\#define LIBSSH2_MBEDTLS 1
+        \\#endif
+    else
         \\#ifndef LIBSSH2_CONFIG_H
         \\#define LIBSSH2_CONFIG_H
         \\#define HAVE_UNISTD_H 1
@@ -154,6 +174,12 @@ pub fn build(b: *std.Build) !void {
 
     // libcurl for HTTP/HTTPS with TLS cert skip
     exe.linkSystemLibrary("curl");
+
+    // Windows: link winsock2 for socket support
+    if (is_windows) {
+        exe.linkSystemLibrary("ws2_32");
+        exe.linkSystemLibrary("bcrypt");
+    }
 
     exe.addIncludePath(mbedtls_include);
     exe.addIncludePath(libssh2_dep.path("include"));
