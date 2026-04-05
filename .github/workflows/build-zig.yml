@@ -119,6 +119,18 @@ jobs:
           Copy-Item -Path "$sdl2\*" -Destination $merged -Recurse -Force
           Copy-Item -Path "$sdl2ttf\*" -Destination $merged -Recurse -Force
 
+          # Force DLL linking for SDL2/SDL2_ttf too — the static libs
+          # pull in dozens of Windows system deps (gdi32, imm32, …).
+          # Rename .dll.a → .a so Zig picks the DLL import libs.
+          foreach ($lib in @("libSDL2", "libSDL2_ttf", "libSDL2main")) {
+            $dllA = "$merged\lib\$lib.dll.a"
+            $staticA = "$merged\lib\$lib.a"
+            if (Test-Path $dllA) {
+              Remove-Item $staticA -ErrorAction SilentlyContinue
+              Rename-Item $dllA "$lib.a"
+            }
+          }
+
           zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-windows-gnu `
             -Dextra-include="$merged\include\SDL2" `
             --search-prefix "$merged" `
