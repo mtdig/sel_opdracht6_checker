@@ -4,6 +4,9 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // Optional extra include path (e.g. for SDL2/SDL.h on Windows mingw)
+    const extra_include = b.option([]const u8, "extra-include", "Additional include path (for SDL2 on Windows)");
+
     // ── mbedtls (compile from C source) ──
     const mbedtls_dep = b.dependency("mbedtls", .{});
     const mbedtls_lib = b.addLibrary(.{
@@ -82,6 +85,7 @@ pub fn build(b: *std.Build) !void {
     libssh2_lib.addIncludePath(libssh2_dep.path("src"));
 
     const is_windows = target.result.os.tag == .windows;
+    const is_macos = target.result.os.tag == .macos;
 
     const config_wf = b.addWriteFiles();
     _ = config_wf.add("libssh2_config.h", if (is_windows)
@@ -100,6 +104,33 @@ pub fn build(b: *std.Build) !void {
         \\#define HAVE_WINSOCK2_H 1
         \\#define HAVE_WS2TCPIP_H 1
         \\#define HAVE_WINDOWS_H 1
+        \\#define LIBSSH2_MBEDTLS 1
+        \\#endif
+    else if (is_macos)
+        \\#ifndef LIBSSH2_CONFIG_H
+        \\#define LIBSSH2_CONFIG_H
+        \\#define HAVE_UNISTD_H 1
+        \\#define HAVE_INTTYPES_H 1
+        \\#define HAVE_STDLIB_H 1
+        \\#define HAVE_SYS_SELECT_H 1
+        \\#define HAVE_SYS_UIO_H 1
+        \\#define HAVE_SYS_SOCKET_H 1
+        \\#define HAVE_SYS_IOCTL_H 1
+        \\#define HAVE_SYS_TIME_H 1
+        \\#define HAVE_SYS_UN_H 1
+        \\#define HAVE_ARPA_INET_H 1
+        \\#define HAVE_NETINET_IN_H 1
+        \\#define HAVE_FCNTL_H 1
+        \\#define HAVE_ERRNO_H 1
+        \\#define HAVE_STDIO_H 1
+        \\#define HAVE_STRING_H 1
+        \\#define HAVE_STDINT_H 1
+        \\#define HAVE_STRTOLL 1
+        \\#define HAVE_SNPRINTF 1
+        \\#define HAVE_POLL 1
+        \\#define HAVE_SELECT 1
+        \\#define HAVE_GETTIMEOFDAY 1
+        \\#define HAVE_O_NONBLOCK 1
         \\#define LIBSSH2_MBEDTLS 1
         \\#endif
     else
@@ -181,6 +212,7 @@ pub fn build(b: *std.Build) !void {
     exe.addIncludePath(mbedtls_include);
     exe.addIncludePath(libssh2_dep.path("include"));
     exe.addIncludePath(config_dir);
+    if (extra_include) |p| exe.root_module.addIncludePath(.{ .cwd_relative = p });
 
     b.installArtifact(exe);
 
@@ -207,6 +239,7 @@ pub fn build(b: *std.Build) !void {
     exe_tests.addIncludePath(mbedtls_include);
     exe_tests.addIncludePath(libssh2_dep.path("include"));
     exe_tests.addIncludePath(config_dir);
+    if (extra_include) |p| exe_tests.root_module.addIncludePath(.{ .cwd_relative = p });
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);

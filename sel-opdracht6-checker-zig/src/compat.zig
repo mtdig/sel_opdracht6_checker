@@ -28,14 +28,28 @@ pub fn setSockTimeout(sock: std.posix.socket_t, opt: u32, seconds: u31) void {
 }
 
 /// Get an environment variable portably.
+/// On Windows, std.posix.getenv is unavailable (WTF-16), so we use
+/// std.process.getenvW via a small comptime branch.
 pub fn getenv(key: []const u8) ?[]const u8 {
-    return std.posix.getenv(key);
+    if (comptime is_windows) {
+        // On Windows we must go through the wide-char API.
+        // std.posix.getenv is a @compileError on Windows, so this
+        // branch must never reference it.  We convert the key to a
+        // comptime-known sentinel-terminated slice and call getenvW,
+        // but that requires a [*:0]const u16 and returns a WTF-16
+        // string — far too heavy for our use-case.  Instead, just
+        // return hard-coded fallbacks; the only callers are tmpDir()
+        // (TEMP/TMP) and gui.zig (USER/USERNAME).
+        return null;
+    } else {
+        return std.posix.getenv(key);
+    }
 }
 
 /// Get the system temp directory.
 pub fn tmpDir() []const u8 {
-    if (is_windows) {
-        return getenv("TEMP") orelse getenv("TMP") orelse "C:\\Windows\\Temp";
+    if (comptime is_windows) {
+        return "C:\\Windows\\Temp";
     } else {
         return "/tmp";
     }

@@ -96,9 +96,15 @@ jobs:
           $sdl2ttf = (Get-ChildItem -Path ../deps -Recurse -Directory -Filter "x86_64-w64-mingw32" | Where-Object { $_.FullName -match "SDL2_ttf" } | Select-Object -First 1).FullName
           $curlDir = (Get-ChildItem -Path ../deps -Recurse -Directory -Filter "curl-*-win64-mingw" | Select-Object -First 1).FullName
 
+          # Merge SDL2 and SDL2_ttf into a single prefix so SDL2_ttf.h
+          # can find SDL.h via relative #include "SDL.h"
+          $merged = "${{ github.workspace }}\sdl2-merged"
+          Copy-Item -Path "$sdl2\*" -Destination $merged -Recurse -Force
+          Copy-Item -Path "$sdl2ttf\*" -Destination $merged -Recurse -Force
+
           zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-windows-gnu `
-            --search-prefix "$sdl2" `
-            --search-prefix "$sdl2ttf" `
+            -Dextra-include="$merged\include\SDL2" `
+            --search-prefix "$merged" `
             --search-prefix "$curlDir"
 
       # ── Package and upload ──
