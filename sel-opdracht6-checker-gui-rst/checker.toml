@@ -1,0 +1,45 @@
+# SELab Opdracht 6 Checker — Configuration
+# All tuneable values in one place. The binary looks for this file
+# next to the executable, then in the current working directory.
+
+[general]
+default_target = "192.168.56.20"
+internet_ping_target = "8.8.8.8"
+
+[ssh]
+port = 22
+
+[apache]
+expected_text = "Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!"
+
+[sftp]
+remote_path = "/var/www/html/opdracht6.html"
+check_filename = "opdracht6.html"
+
+[mysql]
+port = 3306
+database = "appdb"
+
+[wordpress]
+port = 8080
+database = "wpdb"
+min_posts = 3
+
+[portainer]
+port = 9443
+
+[vaultwarden]
+port = 4123
+
+[planka]
+port = 3000
+test_user = "troubleshoot@selab.hogent.be"
+test_pass = "shoot"
+
+[minetest]
+port = 30000
+
+[docker]
+expected_containers = ["vaultwarden", "minetest", "portainer", "planka"]
+shared_compose_path = "~/docker"
+planka_compose_path = "~/docker/planka"
