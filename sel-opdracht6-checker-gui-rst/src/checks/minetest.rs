@@ -1,8 +1,9 @@
 use crate::checks::SharedSshSession;
 use crate::types::*;
 
-/// Check that minetest container runs and port 30000 is exposed
-pub async fn run(_config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
+/// Check that minetest container runs and port is exposed
+pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
+    let port = config.app.minetest.port;
     let ssh = {
         let guard = ssh_session.lock().await;
         match guard.as_ref() {
@@ -35,15 +36,15 @@ pub async fn run(_config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckR
         }
     }
 
-    // Check port 30000 via ss
-    match ssh.exec("ss -uln | grep 30000").await {
+    // Check port via ss
+    match ssh.exec(&format!("ss -uln | grep {port}")).await {
         Ok(ss_out) if !ss_out.trim().is_empty() => {
-            results.push(CheckResult::pass("Minetest UDP port 30000 is listening"));
+            results.push(CheckResult::pass(format!("Minetest UDP port {port} is listening")));
         }
         _ => {
             results.push(CheckResult::fail(
-                "Minetest port 30000 not listening",
-                "UDP port 30000 not found in ss -uln output",
+                format!("Minetest port {port} not listening"),
+                format!("UDP port {port} not found in ss -uln output"),
             ));
         }
     }

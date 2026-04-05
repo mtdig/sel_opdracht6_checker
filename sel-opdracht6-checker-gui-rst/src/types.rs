@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -218,6 +219,223 @@ pub struct Config {
     pub target: String,
     pub local_user: String,
     pub secrets: Secrets,
+    pub app: AppConfig,
+}
+
+// ─── External configuration (checker.toml) ──────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AppConfig {
+    #[serde(default)]
+    pub general: GeneralCfg,
+    #[serde(default)]
+    pub ssh: SshCfg,
+    #[serde(default)]
+    pub apache: ApacheCfg,
+    #[serde(default)]
+    pub sftp: SftpCfg,
+    #[serde(default)]
+    pub mysql: MysqlCfg,
+    #[serde(default)]
+    pub wordpress: WordPressCfg,
+    #[serde(default)]
+    pub portainer: PortainerCfg,
+    #[serde(default)]
+    pub vaultwarden: VaultwardenCfg,
+    #[serde(default)]
+    pub planka: PlankaCfg,
+    #[serde(default)]
+    pub minetest: MinetestCfg,
+    #[serde(default)]
+    pub docker: DockerCfg,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct GeneralCfg {
+    pub default_target: String,
+    pub internet_ping_target: String,
+}
+impl Default for GeneralCfg {
+    fn default() -> Self {
+        Self {
+            default_target: "192.168.56.20".into(),
+            internet_ping_target: "8.8.8.8".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct SshCfg {
+    pub port: u16,
+}
+impl Default for SshCfg {
+    fn default() -> Self { Self { port: 22 } }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct ApacheCfg {
+    pub expected_text: String,
+}
+impl Default for ApacheCfg {
+    fn default() -> Self {
+        Self {
+            expected_text: "Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct SftpCfg {
+    pub remote_path: String,
+    pub check_filename: String,
+}
+impl Default for SftpCfg {
+    fn default() -> Self {
+        Self {
+            remote_path: "/var/www/html/opdracht6.html".into(),
+            check_filename: "opdracht6.html".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct MysqlCfg {
+    pub port: u16,
+    pub database: String,
+}
+impl Default for MysqlCfg {
+    fn default() -> Self {
+        Self { port: 3306, database: "appdb".into() }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct WordPressCfg {
+    pub port: u16,
+    pub database: String,
+    pub min_posts: usize,
+}
+impl Default for WordPressCfg {
+    fn default() -> Self {
+        Self { port: 8080, database: "wpdb".into(), min_posts: 3 }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct PortainerCfg {
+    pub port: u16,
+}
+impl Default for PortainerCfg {
+    fn default() -> Self { Self { port: 9443 } }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct VaultwardenCfg {
+    pub port: u16,
+}
+impl Default for VaultwardenCfg {
+    fn default() -> Self { Self { port: 4123 } }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct PlankaCfg {
+    pub port: u16,
+    pub test_user: String,
+    pub test_pass: String,
+}
+impl Default for PlankaCfg {
+    fn default() -> Self {
+        Self {
+            port: 3000,
+            test_user: "troubleshoot@selab.hogent.be".into(),
+            test_pass: "shoot".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct MinetestCfg {
+    pub port: u16,
+}
+impl Default for MinetestCfg {
+    fn default() -> Self { Self { port: 30000 } }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
+pub struct DockerCfg {
+    pub expected_containers: Vec<String>,
+    pub shared_compose_path: String,
+    pub planka_compose_path: String,
+}
+impl Default for DockerCfg {
+    fn default() -> Self {
+        Self {
+            expected_containers: vec![
+                "vaultwarden".into(), "minetest".into(),
+                "portainer".into(), "planka".into(),
+            ],
+            shared_compose_path: "~/docker".into(),
+            planka_compose_path: "~/docker/planka".into(),
+        }
+    }
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            general: GeneralCfg::default(),
+            ssh: SshCfg::default(),
+            apache: ApacheCfg::default(),
+            sftp: SftpCfg::default(),
+            mysql: MysqlCfg::default(),
+            wordpress: WordPressCfg::default(),
+            portainer: PortainerCfg::default(),
+            vaultwarden: VaultwardenCfg::default(),
+            planka: PlankaCfg::default(),
+            minetest: MinetestCfg::default(),
+            docker: DockerCfg::default(),
+        }
+    }
+}
+
+impl AppConfig {
+    /// Load from checker.toml next to the executable, then CWD, or use defaults.
+    pub fn load() -> Self {
+        // 1. Next to the executable
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let path = dir.join("checker.toml");
+                if let Ok(text) = std::fs::read_to_string(&path) {
+                    if let Ok(cfg) = toml::from_str::<AppConfig>(&text) {
+                        eprintln!("[config] loaded {}", path.display());
+                        return cfg;
+                    }
+                }
+            }
+        }
+        // 2. Current working directory
+        let cwd_path = std::path::PathBuf::from("checker.toml");
+        if let Ok(text) = std::fs::read_to_string(&cwd_path) {
+            if let Ok(cfg) = toml::from_str::<AppConfig>(&text) {
+                eprintln!("[config] loaded checker.toml (cwd)");
+                return cfg;
+            }
+        }
+        // 3. Defaults
+        eprintln!("[config] no checker.toml found, using built-in defaults");
+        Self::default()
+    }
 }
 
 /// Shared state between the GUI and background check threads.

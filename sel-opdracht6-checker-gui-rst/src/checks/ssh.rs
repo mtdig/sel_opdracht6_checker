@@ -23,6 +23,7 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
     let user = &config.secrets.ssh_user;
     let pass = &config.secrets.ssh_pass;
     let target = &config.target;
+    let port = config.app.ssh.port;
 
     let ssh_config = client::Config {
         inactivity_timeout: Some(std::time::Duration::from_secs(15)),
@@ -32,20 +33,20 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
     // Connect
     let mut session = match tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        client::connect(Arc::new(ssh_config), (target.as_str(), 22), SshHandler),
+        client::connect(Arc::new(ssh_config), (target.as_str(), port), SshHandler),
     )
     .await
     {
         Ok(Ok(session)) => session,
         Ok(Err(e)) => {
             return vec![CheckResult::fail(
-                format!("SSH connection as {user} on port 22"),
+                format!("SSH connection as {user} on port {port}"),
                 format!("Connection failed: {e}"),
             )];
         }
         Err(_) => {
             return vec![CheckResult::fail(
-                format!("SSH connection as {user} on port 22"),
+                format!("SSH connection as {user} on port {port}"),
                 "Connection timed out",
             )];
         }
@@ -59,7 +60,7 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
         Ok(ok) => ok,
         Err(e) => {
             return vec![CheckResult::fail(
-                format!("SSH connection as {user} on port 22"),
+                format!("SSH connection as {user} on port {port}"),
                 format!("Auth failed: {e}"),
             )];
         }
@@ -67,7 +68,7 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
 
     if !auth_ok {
         return vec![CheckResult::fail(
-            format!("SSH connection as {user} on port 22"),
+            format!("SSH connection as {user} on port {port}"),
             format!("Cannot log in with {user}"),
         )];
     }
@@ -81,18 +82,18 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
             // Store session
             *ssh_session.lock().await = Some(ssh);
             vec![CheckResult::pass(format!(
-                "SSH connection as {user} on port 22"
+                "SSH connection as {user} on port {port}"
             ))]
         }
         Ok(_) => {
             vec![CheckResult::fail(
-                format!("SSH connection as {user} on port 22"),
+                format!("SSH connection as {user} on port {port}"),
                 "Could not verify SSH session",
             )]
         }
         Err(e) => {
             vec![CheckResult::fail(
-                format!("SSH connection as {user} on port 22"),
+                format!("SSH connection as {user} on port {port}"),
                 format!("echo ok failed: {e}"),
             )]
         }

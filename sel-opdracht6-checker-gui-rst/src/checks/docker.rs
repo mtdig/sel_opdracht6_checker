@@ -1,10 +1,11 @@
 use crate::checks::SharedSshSession;
 use crate::types::*;
 
-const EXPECTED_CONTAINERS: &[&str] = &["vaultwarden", "minetest", "portainer", "planka"];
-
 /// Combined Docker check: containers + mounts + compose
-pub async fn run(_config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
+pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
+    let expected_containers = &config.app.docker.expected_containers;
+    let shared_compose_path = &config.app.docker.shared_compose_path;
+    let planka_compose_path = &config.app.docker.planka_compose_path;
     let ssh = {
         let guard = ssh_session.lock().await;
         match guard.as_ref() {
@@ -24,7 +25,7 @@ pub async fn run(_config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckR
     match ssh.exec("docker ps --format '{{.Names}}' 2>/dev/null").await {
         Ok(out) => {
             let running: Vec<&str> = out.lines().map(|l| l.trim()).collect();
-            for name in EXPECTED_CONTAINERS {
+            for name in expected_containers {
                 if running.iter().any(|r| r.contains(name)) {
                     results.push(CheckResult::pass(format!("Container '{name}' is running")));
                 } else {
@@ -61,7 +62,7 @@ pub async fn run(_config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckR
                         let mount_type = segs[0];
                         let dest = segs.get(2).unwrap_or(&"?");
                         results.push(CheckResult::pass(format!(
-                            "{name}: {mount_type} mount → {dest}"
+                            "{name}: {mount_type} mount -> {dest}"
                         )));
                     }
                 }
@@ -72,21 +73,41 @@ pub async fn run(_config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckR
         }
     }
 
-    // 3. Check planka compose file (same logic as Java: ~/docker/planka/)
-    let compose_cmd = "test -f ~/docker/planka/docker-compose.yml && echo COMPOSE_OK || test -f ~/docker/planka/compose.yml && echo COMPOSE_OK || echo COMPOSE_MISSING";
-
-    match ssh.exec(compose_cmd).await {
+    // 3. Check shared compose file (vaultwarden, minetest, portainer)
+    let shared_cmd = format!(
+        "test -f {shared_compose_path}/docker-compose.yml && echo COMPOSE_OK || test -f {shared_compose_path}/compose.yml && echo COMPOSE_OK || echo COMPOSE_MISSING"
+    );
+    match ssh.exec(&shared_cmd).await {
         Ok(out) if out.contains("COMPOSE_OK") => {
-            results.push(CheckResult::pass("Planka compose in ~/docker/planka/"));
+            results.push(CheckResult::pass(format!("Shared compose in {shared_compose_path}/")));
         }
         Ok(_) => {
             results.push(CheckResult::fail(
-                "No compose in ~/docker/planka/",
+                format!("No compose in {shared_compose_path}/"),
                 "Expected docker-compose.yml or compose.yml",
             ));
         }
         Err(e) => {
-            results.push(CheckResult::fail("Could not check for compose file", e));
+            results.push(CheckResult::fail("Could not check for shared compose file", e));
+        }
+    }
+
+    // 4. Check planka compose file
+    let planka_cmd = format!(
+        "test -f {planka_compose_path}/docker-compose.yml && echo COMPOSE_OK || test -f {planka_compose_path}/compose.yml && echo COMPOSE_OK || echo COMPOSE_MISSING"
+    );
+    match ssh.exec(&planka_cmd).await {
+        Ok(out) if out.contains("COMPOSE_OK") => {
+            results.push(CheckResult::pass(format!("Planka compose in {planka_compose_path}/")));
+        }
+        Ok(_) => {
+            results.push(CheckResult::fail(
+                format!("No compose in {planka_compose_path}/"),
+                "Expected docker-compose.yml or compose.yml",
+            ));
+        }
+        Err(e) => {
+            results.push(CheckResult::fail("Could not check for Planka compose file", e));
         }
     }
 

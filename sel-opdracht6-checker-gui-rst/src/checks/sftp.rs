@@ -16,7 +16,8 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
     };
 
     let mut results = Vec::new();
-    let remote_path = "/var/www/html/opdracht6.html";
+    let remote_path = &config.app.sftp.remote_path;
+    let check_filename = &config.app.sftp.check_filename;
     let user = &config.secrets.ssh_user;
     let local_user = &config.local_user;
 
@@ -53,11 +54,11 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
     let _ = ssh.exec(&format!("chmod 644 {remote_path}")).await;
 
     // Roundtrip via HTTPS
-    let check_url = format!("https://{}/opdracht6.html", config.target);
+    let check_url = format!("https://{}/{check_filename}", config.target);
     match http_helper::get(&check_url).await {
         Ok(resp) if resp.status >= 200 && resp.status < 400 => {
             results.push(CheckResult::pass(format!(
-                "opdracht6.html reachable via HTTPS (HTTP {})",
+                "{check_filename} reachable via HTTPS (HTTP {})",
                 resp.status
             )));
 
@@ -74,13 +75,13 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
         }
         Ok(resp) => {
             results.push(CheckResult::fail(
-                "opdracht6.html not reachable via HTTPS",
+                format!("{check_filename} not reachable via HTTPS"),
                 format!("HTTP status: {}", resp.status),
             ));
         }
         Err(e) => {
             results.push(CheckResult::fail(
-                "opdracht6.html not reachable via HTTPS",
+                format!("{check_filename} not reachable via HTTPS"),
                 e,
             ));
         }

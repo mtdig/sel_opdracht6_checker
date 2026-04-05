@@ -2,9 +2,10 @@ use crate::checks::http_helper;
 use crate::checks::SharedSshSession;
 use crate::types::*;
 
-/// WordPress reachable via HTTP on port 8080
+/// WordPress reachable via HTTP
 pub async fn run_reachable(config: &Config) -> Vec<CheckResult> {
-    let url = format!("http://{}:8080", config.target);
+    let port = config.app.wordpress.port;
+    let url = format!("http://{}:{port}", config.target);
     match http_helper::get(&url).await {
         Ok(resp) if resp.status < 400 => {
             vec![CheckResult::pass(format!(
@@ -18,28 +19,30 @@ pub async fn run_reachable(config: &Config) -> Vec<CheckResult> {
                 format!("HTTP status: {}", resp.status),
             )]
         }
-        Err(e) => vec![CheckResult::fail("WordPress not reachable on port 8080", e)],
+        Err(e) => vec![CheckResult::fail(format!("WordPress not reachable on port {port}"), e)],
     }
 }
 
-/// WordPress has >= 3 posts via REST API
+/// WordPress has >= min_posts posts via REST API
 pub async fn run_posts(config: &Config) -> Vec<CheckResult> {
+    let port = config.app.wordpress.port;
+    let min_posts = config.app.wordpress.min_posts;
     // Use ?rest_route= parameter (works even without pretty permalinks)
-    let url = format!("http://{}:8080/?rest_route=/wp/v2/posts", config.target);
+    let url = format!("http://{}:{port}/?rest_route=/wp/v2/posts", config.target);
     match http_helper::get(&url).await {
         Ok(resp) if resp.status < 400 => {
             // Parse as JSON array and count
             match serde_json::from_str::<serde_json::Value>(&resp.body) {
                 Ok(serde_json::Value::Array(arr)) => {
                     let count = arr.len();
-                    if count >= 3 {
+                    if count >= min_posts {
                         vec![CheckResult::pass(format!(
-                            "WordPress has {count} posts (>= 3)"
+                            "WordPress has {count} posts (>= {min_posts})"
                         ))]
                     } else {
                         vec![CheckResult::fail(
                             "Not enough WordPress posts",
-                            format!("Found {count}, need >= 3"),
+                            format!("Found {count}, need >= {min_posts}"),
                         )]
                     }
                 }
@@ -59,7 +62,8 @@ pub async fn run_posts(config: &Config) -> Vec<CheckResult> {
 
 /// WordPress login via XML-RPC
 pub async fn run_login(config: &Config) -> Vec<CheckResult> {
-    let url = format!("http://{}:8080/xmlrpc.php", config.target);
+    let port = config.app.wordpress.port;
+    let url = format!("http://{}:{port}/xmlrpc.php", config.target);
     let payload = format!(
         r#"<?xml version="1.0"?>
 <methodCall>
@@ -107,15 +111,16 @@ pub async fn run_db(config: &Config, ssh_session: &SharedSshSession) -> Vec<Chec
         }
     };
 
+    let wpdb = &config.app.wordpress.database;
     let cmd = format!(
-        "mysql -u {} -p'{}' wpdb -e 'SELECT 1;' 2>/dev/null",
+        "mysql -u {} -p'{}' {wpdb} -e 'SELECT 1;' 2>/dev/null",
         config.secrets.wp_user, config.secrets.wp_pass
     );
     match ssh.exec(&cmd).await {
         Ok(out) => {
             let trimmed = out.trim();
             if trimmed.contains('1') {
-                vec![CheckResult::pass("WordPress database wpdb reachable via SSH")]
+                vec![CheckResult::pass(format!("WordPress database {wpdb} reachable via SSH"))]
             } else {
                 vec![CheckResult::fail(
                     "WordPress DB query unexpected output",

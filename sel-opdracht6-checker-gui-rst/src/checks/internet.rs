@@ -1,7 +1,8 @@
 use crate::checks::SharedSshSession;
 use crate::types::*;
 
-pub async fn run(ssh_session: &SharedSshSession) -> Vec<CheckResult> {
+pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
+    let ping_target = &config.app.general.internet_ping_target;
     let ssh = {
         let guard = ssh_session.lock().await;
         match guard.as_ref() {
@@ -15,17 +16,17 @@ pub async fn run(ssh_session: &SharedSshSession) -> Vec<CheckResult> {
         }
     };
 
-    match ssh
-        .exec("ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1 && echo INET_OK || echo INET_FAIL")
-        .await
-    {
+    let cmd = format!(
+        "ping -c 1 -W 3 {ping_target} >/dev/null 2>&1 && echo INET_OK || echo INET_FAIL"
+    );
+    match ssh.exec(&cmd).await {
         Ok(out) if out.contains("INET_OK") => {
             vec![CheckResult::pass("VM has internet access")]
         }
         Ok(_) => {
             vec![CheckResult::fail(
                 "VM has no internet access",
-                "ping 8.8.8.8 from VM failed",
+                format!("ping {ping_target} from VM failed"),
             )]
         }
         Err(e) => {

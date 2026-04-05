@@ -2,7 +2,8 @@ use crate::checks::http_helper;
 use crate::types::*;
 
 pub async fn run(config: &Config) -> Vec<CheckResult> {
-    let url = format!("http://{}:3000", config.target);
+    let port = config.app.planka.port;
+    let url = format!("http://{}:{port}", config.target);
     let mut results = Vec::new();
 
     match http_helper::get(&url).await {
@@ -24,13 +25,17 @@ pub async fn run(config: &Config) -> Vec<CheckResult> {
     }
 
     // Login
+    let test_user = &config.app.planka.test_user;
+    let test_pass = &config.app.planka.test_pass;
     let login_url = format!("{url}/api/access-tokens");
-    let payload = r#"{"emailOrUsername":"troubleshoot@selab.hogent.be","password":"shoot"}"#;
+    let payload = format!(
+        r#"{{"emailOrUsername":"{test_user}","password":"{test_pass}"}}"#
+    );
 
-    match http_helper::post(&login_url, "application/json", payload).await {
+    match http_helper::post(&login_url, "application/json", &payload).await {
         Ok(resp) if resp.body.contains("\"item\"") => {
             results.push(CheckResult::pass(
-                "Planka login as troubleshoot@selab.hogent.be",
+                format!("Planka login as {test_user}"),
             ));
         }
         Ok(_) => {

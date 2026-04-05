@@ -59,6 +59,7 @@ struct App {
     states: SharedStates,
     ssh_session: SharedSshSession,
     config: Option<Config>,
+    app_config: AppConfig,
 
     // Tokio runtime handle
     rt: tokio::runtime::Handle,
@@ -76,11 +77,13 @@ struct App {
 
 impl App {
     fn new(rt: tokio::runtime::Handle) -> Self {
+        let app_config = AppConfig::load();
         let defs = all_checks();
         let states: Vec<CheckState> = defs.into_iter().map(CheckState::new).collect();
 
+        let default_target = app_config.general.default_target.clone();
         Self {
-            target: "192.168.56.20".into(),
+            target: default_target,
             local_user: whoami::username(),
             passphrase: String::new(),
             status_msg: String::new(),
@@ -89,6 +92,7 @@ impl App {
             states: Arc::new(Mutex::new(states)),
             ssh_session: Arc::new(TokioMutex::new(None)),
             config: None,
+            app_config,
             rt,
 
             view: View::Grid,
@@ -211,6 +215,7 @@ impl App {
             target: self.target.trim().to_string(),
             local_user: self.local_user.trim().to_string(),
             secrets,
+            app: self.app_config.clone(),
         };
         self.config = Some(config.clone());
 
@@ -538,7 +543,7 @@ impl App {
         // Back button
         ui.horizontal(|ui| {
             if ui
-                .button(egui::RichText::new("← Back to overview").color(COL_TEXT_DIM))
+                .button(egui::RichText::new("< Back to overview").color(COL_TEXT_DIM))
                 .clicked()
             {
                 self.view = View::Grid;
@@ -654,7 +659,7 @@ impl App {
                             ui.horizontal(|ui| {
                                 ui.add_space(58.0);
                                 ui.label(
-                                    egui::RichText::new(format!("└─ {}", r.detail))
+                                    egui::RichText::new(format!("   {}", r.detail))
                                         .color(COL_TEXT_DIM)
                                         .small(),
                                 );
@@ -798,7 +803,7 @@ impl App {
                                         ui.horizontal(|ui| {
                                             ui.add_space(24.0);
                                             ui.label(
-                                                egui::RichText::new(format!("└─ {}", r.detail))
+                                                egui::RichText::new(format!("   {}", r.detail))
                                                     .color(COL_TEXT_DIM)
                                                     .small(),
                                             );

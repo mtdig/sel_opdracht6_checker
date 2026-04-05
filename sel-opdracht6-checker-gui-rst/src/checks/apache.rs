@@ -18,9 +18,8 @@ pub async fn run(config: &Config) -> Vec<CheckResult> {
                 resp.status
             )));
 
-            let expected =
-                "Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!";
-            if resp.body.contains(expected) {
+            let expected = &config.app.apache.expected_text;
+            if resp.body.contains(expected.as_str()) {
                 results.push(CheckResult::pass("index.html contains expected text"));
             } else {
                 results.push(CheckResult::fail(

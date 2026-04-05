@@ -75,7 +75,7 @@ pub async fn run_check(
         CheckId::Apache => apache::run(config).await,
         CheckId::Sftp => sftp::run(config, ssh_session).await,
         CheckId::Docker => docker::run(config, ssh_session).await,
-        CheckId::Internet => internet::run(ssh_session).await,
+        CheckId::Internet => internet::run(config, ssh_session).await,
         CheckId::MysqlRemote => mysql::run_remote(config, ssh_session).await,
         CheckId::MysqlLocal => mysql::run_local(config, ssh_session).await,
         CheckId::MysqlAdmin => mysql::run_admin(config, ssh_session).await,
