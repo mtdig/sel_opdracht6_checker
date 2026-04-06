@@ -126,9 +126,13 @@ jobs:
           files: release/*
           generate_release_notes: true
 
-      - name: Update latest tag
-        run: |
-          git tag -f latest
-          git push origin latest --force
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Update latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Release
+          files: release/*
+          make_latest: true
+          body: |
+            This is always updated to the most recent release.
+            Built from ${{ github.ref_name }} (${{ github.sha }})
