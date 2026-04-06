@@ -410,7 +410,12 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
-    /// Load from checker.toml next to the executable, then CWD, or use defaults.
+    /// The embedded default configuration compiled into the binary.
+    pub const EMBEDDED_TOML: &'static str = include_str!("../checker.toml");
+
+    /// Load configuration.
+    /// 1. If checker.toml exists next to the executable, use it.
+    /// 2. Otherwise, parse the embedded default.
     pub fn load() -> Self {
         // 1. Next to the executable
         if let Ok(exe) = std::env::current_exe() {
@@ -424,17 +429,10 @@ impl AppConfig {
                 }
             }
         }
-        // 2. Current working directory
-        let cwd_path = std::path::PathBuf::from("checker.toml");
-        if let Ok(text) = std::fs::read_to_string(&cwd_path) {
-            if let Ok(cfg) = toml::from_str::<AppConfig>(&text) {
-                eprintln!("[config] loaded checker.toml (cwd)");
-                return cfg;
-            }
-        }
-        // 3. Defaults
-        eprintln!("[config] no checker.toml found, using built-in defaults");
-        Self::default()
+        // 2. Embedded default
+        eprintln!("[config] using embedded defaults");
+        toml::from_str::<AppConfig>(Self::EMBEDDED_TOML)
+            .expect("embedded checker.toml is invalid")
     }
 }
 

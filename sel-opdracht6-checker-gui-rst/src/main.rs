@@ -317,7 +317,7 @@ impl App {
         });
         ui.add_space(8.0);
 
-        ui.label(egui::RichText::new("Target (hostname / IP)").color(COL_TEXT_DIM).small());
+        ui.label(egui::RichText::new("Target (hostname / IP)").color(COL_TEXT).size(14.0));
         ui.add(
             egui::TextEdit::singleline(&mut self.target)
                 .desired_width(f32::INFINITY)
@@ -325,7 +325,7 @@ impl App {
         );
         ui.add_space(4.0);
 
-        ui.label(egui::RichText::new("Local user").color(COL_TEXT_DIM).small());
+        ui.label(egui::RichText::new("Local user").color(COL_TEXT).size(14.0));
         ui.add(
             egui::TextEdit::singleline(&mut self.local_user)
                 .desired_width(f32::INFINITY),
@@ -335,7 +335,7 @@ impl App {
         ui.separator();
         ui.add_space(4.0);
 
-        ui.label(egui::RichText::new("Decryption passphrase").color(COL_TEXT_DIM).small());
+        ui.label(egui::RichText::new("Decryption passphrase").color(COL_TEXT).size(14.0));
         ui.add(
             egui::TextEdit::singleline(&mut self.passphrase)
                 .password(true)
@@ -347,7 +347,7 @@ impl App {
         ui.label(
             egui::RichText::new("Embedded secrets are decrypted at runtime")
                 .color(COL_TEXT_DIM)
-                .small()
+                .size(12.0)
                 .italics(),
         );
 
@@ -374,7 +374,7 @@ impl App {
             let text = format!(
                 "{pass} passed · {fail} failed · {skip} skipped / {total}  |  {dur:.1}s"
             );
-            ui.label(egui::RichText::new(text).color(COL_TEXT_DIM).small());
+            ui.label(egui::RichText::new(text).color(COL_TEXT).size(12.0));
         }
 
         // Spacer
@@ -858,6 +858,12 @@ impl App {
 // ─── main ────────────────────────────────────────────────────────────────────
 
 fn main() -> eframe::Result<()> {
+    // Handle --config: dump embedded config to stdout and exit
+    if std::env::args().any(|a| a == "--config") {
+        print!("{}", AppConfig::EMBEDDED_TOML);
+        return Ok(());
+    }
+
     // Build tokio runtime
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
