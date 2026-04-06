@@ -1,5 +1,7 @@
 package checks;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonParser;
 import domain.Check;
 import domain.CheckContext;
 import domain.CheckResult;
@@ -19,21 +21,17 @@ public class WordPressPostsCheck implements Check {
     public List<CheckResult> run(CheckContext ctx) {
         try {
             HttpHelper.HttpResponse resp = HttpHelper.get(ctx.getWpUrl() + "/?rest_route=/wp/v2/posts");
-            String body = resp.body();
-            // Quick count of top-level JSON array items
-            long count = body.chars().filter(c -> c == '{').count();
-            // More reliable: split on },{
-            if (body.startsWith("[")) {
-                String[] items = body.split("\\},\\{");
-                count = items.length;
-            }
-            if (count > 2) {
+            JsonArray posts = JsonParser.parseString(resp.body()).getAsJsonArray();
+            int count = posts.size();
+            if (count >= 3) {
                 return List.of(CheckResult.pass("At least 3 posts (" + count + " found)"));
             }
             return List.of(CheckResult.fail("Not enough posts",
                     "Only " + count + " found, at least 3 expected"));
         } catch (HttpRequestException e) {
             return List.of(CheckResult.fail("WordPress posts retrieval failed", e.getMessage()));
+        } catch (Exception e) {
+            return List.of(CheckResult.fail("Could not parse posts response", e.getMessage()));
         }
     }
 }
