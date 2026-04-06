@@ -1,15 +1,28 @@
 [package]
 name = "sel-checker"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 
 [dependencies]
 # GUI
-eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"] }
+eframe = { version = "0.31", default-features = false, features = [
+  "glow",
+  "default_fonts",
+  "x11",
+  "wayland",
+] }
 egui = "0.31"
 
 # Async runtime
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "net", "time", "sync", "io-util"] }
+tokio = { version = "1", features = [
+  "rt-multi-thread",
+  "macros",
+  "process",
+  "net",
+  "time",
+  "sync",
+  "io-util",
+] }
 
 # SSH / SFTP
 russh = "0.49"
@@ -17,7 +30,9 @@ russh-sftp = "2.0"
 async-trait = "0.1"
 
 # HTTP with TLS skip
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots"] }
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls-manual-roots",
+] }
 
 # Crypto for decrypting secrets.env.enc (OpenSSL enc -aes-256-cbc -pbkdf2)
 aes = "0.8"
