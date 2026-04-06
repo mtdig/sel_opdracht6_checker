@@ -5,6 +5,9 @@ Automated checker for the SELab opdracht6 assignment.  Available as:
 - **Portable binary** (recommended) — single static executable, no dependencies, works on Linux / macOS / Windows × amd64 / arm64
 - **Docker container** — for Linux/macOS hosts that already have Docker
 
+> DISCLAIMER: The screen recordings were taken from a macbook m1 air with an x86_64 VM.  Using a native aarch64 vm results in sub-second runs.
+>
+
 ## Option A: Portable binary - GUI
 
 No dependencies required.  Just put in the ip, local user and decryption passphrase and run.
