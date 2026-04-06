@@ -6,7 +6,7 @@
 
     <groupId>be.hogent.selab</groupId>
     <artifactId>sel-opdracht6-checker-gui</artifactId>
-    <version>0.1.10</version>
+    <version>0.1.11</version>
 
     <properties>
         <java.version>21</java.version>

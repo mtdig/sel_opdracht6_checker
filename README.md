@@ -10,6 +10,7 @@ Automated checker for the SELab opdracht6 assignment.  Available as:
 No dependencies required.  Just put in the ip, local user and decryption passphrase and run.
 
 Download latest release for [Windows (x86_64)](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-windows-amd64.exe), [macos (arm64)](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-macos-arm64) and linux ([x86_64](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-linux-amd64), [aarch64](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-linux-arm64))
+
 <div style="text-align: center;">
   <img src="img/sel-checker-gui-rust.webp" style="width: 800px;"></img>
 </div>
@@ -41,7 +42,7 @@ $env:LOCAL_USER=$env:USERNAME
 DECRYPT_PASS="letmein!" LOCAL_USER=$USER TARGET=192.168.128.20 ./sel-opdracht6-checker-linux-amd64
 ```
 
-## Option B: Docker container
+## Option C: Docker container
 
 Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs):
 
@@ -74,6 +75,19 @@ docker run --rm \
 | `LOCAL_USER`     | current OS user        | Your host username (use `$USER` / `$env:USERNAME`)           |
 | `TRACE_DELAY_MS` | `0`                    | Pause (ms) before clearing trace lines (for debugging)       |
 | `SECRETS_FILE`   | auto-detect            | Override path to `secrets.env.enc`                           |
+
+
+## Option Z: JavaFX
+
+From the sel-opdracht6-checker-gui directory, run:
+```bash
+$ mvn javafx:run
+```
+
+<div style="text-align: center;">
+  <img src="img/sel-checker-gui-java.webp" style="width: 800px;"></img>
+</div>
+
 
 ### Secrets & encryption
 

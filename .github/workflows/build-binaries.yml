@@ -77,8 +77,20 @@ jobs:
         with:
           path: artifacts
 
+      - name: Download checkout for tagging
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
           generate_release_notes: true
+
+      - name: Update latest tag
+        run: |
+          git tag -f latest
+          git push origin latest --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
