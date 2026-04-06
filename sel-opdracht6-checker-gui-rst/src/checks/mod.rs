@@ -96,10 +96,10 @@ pub async fn run_check(
 pub fn run_all(
     config: Config,
     states: SharedStates,
+    ssh_session: SharedSshSession,
     rt: tokio::runtime::Handle,
 ) {
     let config = Arc::new(config);
-    let ssh_session: SharedSshSession = Arc::new(TokioMutex::new(None));
 
     rt.spawn(async move {
         let total_start = Instant::now();

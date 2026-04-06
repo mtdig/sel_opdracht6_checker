@@ -237,7 +237,7 @@ impl App {
         // Reset SSH session
         self.ssh_session = Arc::new(TokioMutex::new(None));
 
-        checks::run_all(config, self.states.clone(), self.rt.clone());
+        checks::run_all(config, self.states.clone(), self.ssh_session.clone(), self.rt.clone());
     }
 
     fn on_run_single(&mut self, check_id: CheckId) {
