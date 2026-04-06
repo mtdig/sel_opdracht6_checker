@@ -125,6 +125,7 @@ pub struct CheckDef {
     pub depends_on_ssh: bool,
 }
 
+// hardcoded, i don't care for this uc
 pub fn all_checks() -> Vec<CheckDef> {
     vec![
         // No SSH dependency — can run in parallel immediately
@@ -137,7 +138,7 @@ pub fn all_checks() -> Vec<CheckDef> {
         CheckDef { id: CheckId::Portainer, name: "Portainer reachable via HTTPS (port 9443)", section: Section::Portainer, protocol: "HTTPS", port: "9443", depends_on_ssh: false },
         CheckDef { id: CheckId::Vaultwarden, name: "Vaultwarden reachable via HTTPS (port 4123)", section: Section::Vaultwarden, protocol: "HTTPS", port: "4123", depends_on_ssh: false },
         CheckDef { id: CheckId::Planka, name: "Planka reachable + login (port 3000)", section: Section::Planka, protocol: "HTTP", port: "3000", depends_on_ssh: false },
-        // SSH-dependent
+        // SSH-dependent !
         CheckDef { id: CheckId::MysqlRemote, name: "MySQL remote login on port 3306", section: Section::Mysql, protocol: "TCP", port: "3306", depends_on_ssh: true },
         CheckDef { id: CheckId::Internet, name: "Internet access from VM (ping 8.8.8.8)", section: Section::Network, protocol: "ICMP", port: "-", depends_on_ssh: true },
         CheckDef { id: CheckId::Sftp, name: "SFTP upload + HTTPS roundtrip", section: Section::Sftp, protocol: "SFTP", port: "22", depends_on_ssh: true },
@@ -222,7 +223,7 @@ pub struct Config {
     pub app: AppConfig,
 }
 
-// ─── External configuration (checker.toml) ──────────────────────────────────
+//  checker.toml
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct AppConfig {
@@ -256,6 +257,9 @@ pub struct GeneralCfg {
     pub default_target: String,
     pub internet_ping_target: String,
 }
+
+// virtualbox default hostonly network is 192.168.56.0/24
+// on Gilles' machine, the VM is at 192.168.128.20
 impl Default for GeneralCfg {
     fn default() -> Self {
         Self {

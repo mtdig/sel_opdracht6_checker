@@ -50,12 +50,12 @@
             # Let JavaFX find native libraries
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath javafxLibs}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-            echo "──────────────────────────────────────────"
+            echo ""
             echo " SELab Opdracht 6 Checker – JavaFX shell"
             echo " Java:  $(java -version 2>&1 | head -1)"
             echo " Maven: $(mvn --version 2>&1 | head -1)"
             echo " Run:   mvn javafx:run"
-            echo "──────────────────────────────────────────"
+            echo ""
           '';
         };
       }

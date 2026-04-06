@@ -8,7 +8,7 @@ set -euo pipefail
 TARGET="${TARGET:-192.168.56.20}"
 LOCAL_USER="${LOCAL_USER:-$(whoami)}"
 
-# ── Secrets (decrypted at runtime via openssl) ─────────────────────────────
+#  Secrets (decrypted at runtime via openssl) 
 SECRETS_FILE="/secrets.env.enc"
 
 if [[ -z "${DECRYPT_PASS:-}" ]]; then
@@ -37,7 +37,7 @@ for var in SSH_USER SSH_PASS MYSQL_REMOTE_USER MYSQL_REMOTE_PASS \
         exit 1
     fi
 done
-# ────────────────────────────────────────────────────────────────────────────
+# 
 
 PORTAINER_URL="https://${TARGET}:9443"
 VAULTWARDEN_URL="https://${TARGET}:4123"

@@ -2,7 +2,6 @@ use crate::checks::http_helper;
 use crate::checks::SharedSshSession;
 use crate::types::*;
 
-/// WordPress reachable via HTTP
 pub async fn run_reachable(config: &Config) -> Vec<CheckResult> {
     let port = config.app.wordpress.port;
     let url = format!("http://{}:{port}", config.target);
@@ -23,11 +22,12 @@ pub async fn run_reachable(config: &Config) -> Vec<CheckResult> {
     }
 }
 
-/// WordPress has >= min_posts posts via REST API
+
 pub async fn run_posts(config: &Config) -> Vec<CheckResult> {
     let port = config.app.wordpress.port;
     let min_posts = config.app.wordpress.min_posts;
-    // Use ?rest_route= parameter (works even without pretty permalinks)
+
+    // using ?rest_route= parameter (works even without pretty permalinks)
     let url = format!("http://{}:{port}/?rest_route=/wp/v2/posts", config.target);
     match http_helper::get(&url).await {
         Ok(resp) if resp.status < 400 => {
@@ -60,7 +60,7 @@ pub async fn run_posts(config: &Config) -> Vec<CheckResult> {
     }
 }
 
-/// WordPress login via XML-RPC
+// WordPress login via XML-RPC -- this should be disabled, but let's go :-)
 pub async fn run_login(config: &Config) -> Vec<CheckResult> {
     let port = config.app.wordpress.port;
     let url = format!("http://{}:{port}/xmlrpc.php", config.target);
@@ -96,7 +96,7 @@ pub async fn run_login(config: &Config) -> Vec<CheckResult> {
     }
 }
 
-/// WordPress DB check via SSH mysql — uses WP_USER/WP_PASS with database "wpdb"
+
 pub async fn run_db(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
     let ssh = {
         let guard = ssh_session.lock().await;

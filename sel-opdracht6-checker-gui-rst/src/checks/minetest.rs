@@ -1,7 +1,6 @@
 use crate::checks::SharedSshSession;
 use crate::types::*;
 
-/// Check that minetest container runs and port is exposed
 pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
     let port = config.app.minetest.port;
     let ssh = {
@@ -19,7 +18,6 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
 
     let mut results = Vec::new();
 
-    // Check container running
     match ssh.exec("docker ps --format '{{.Names}}' 2>/dev/null").await {
         Ok(out) => {
             if out.lines().any(|l| l.contains("minetest")) {
@@ -36,7 +34,7 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
         }
     }
 
-    // Check port via ss
+    // check port via ss instead of netstat because net-tools is not installed by default
     match ssh.exec(&format!("ss -uln | grep {port}")).await {
         Ok(ss_out) if !ss_out.trim().is_empty() => {
             results.push(CheckResult::pass(format!("Minetest UDP port {port} is listening")));

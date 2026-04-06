@@ -1,6 +1,7 @@
 use crate::checks::SharedSshSession;
 use crate::types::*;
 
+
 pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckResult> {
     let ping_target = &config.app.general.internet_ping_target;
     let ssh = {

@@ -11,7 +11,8 @@ const KEY_LEN: usize = 32; // 256 bits
 const IV_LEN: usize = 16;
 const PBKDF2_ITERATIONS: u32 = 10_000;
 
-/// Embedded encrypted secrets file (copied at build time).
+// embedded encrypted secrets file (copied at build time).
+// makes it easier to pass to my fellow students: a single binary and single secret
 const ENCRYPTED_SECRETS: &[u8] = include_bytes!("../secrets.env.enc");
 
 #[derive(Debug, thiserror::Error)]
@@ -26,13 +27,11 @@ pub enum CryptoError {
     MissingKey(String),
 }
 
-/// Decrypt the embedded secrets.env.enc and return key-value pairs.
 pub fn decrypt_secrets(passphrase: &str) -> Result<HashMap<String, String>, CryptoError> {
     let plain = decrypt_bytes(ENCRYPTED_SECRETS, passphrase)?;
     let text = String::from_utf8_lossy(&plain);
     let map = parse_key_values(&text);
 
-    // Verify required keys
     for key in &[
         "SSH_USER",
         "SSH_PASS",
@@ -50,6 +49,9 @@ pub fn decrypt_secrets(passphrase: &str) -> Result<HashMap<String, String>, Cryp
     Ok(map)
 }
 
+
+// This needs a closer look, as I don't understand completely: https://docs.rs/pbkdf2/latest/pbkdf2/
+// ai generated
 /// Decrypt OpenSSL enc -aes-256-cbc -pbkdf2 format.
 ///
 /// Format: "Salted__" (8 bytes) + salt (8 bytes) + ciphertext
@@ -89,6 +91,8 @@ fn decrypt_bytes(data: &[u8], passphrase: &str) -> Result<Vec<u8>, CryptoError> 
     Ok(plaintext.to_vec())
 }
 
+
+// could chain this
 fn parse_key_values(text: &str) -> HashMap<String, String> {
     let mut map = HashMap::new();
     for line in text.lines() {

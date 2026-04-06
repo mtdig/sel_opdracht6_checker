@@ -17,19 +17,18 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Mutex as TokioMutex;
 
-/// Shared SSH session handle used by SSH-dependent checks.
-/// The outer Option is None until the SSH check completes.
-/// Once set, multiple checks can share the Arc<SshSession> concurrently
-/// because `russh::client::Handle` supports multiplexed channels.
+// shared SSH session handle used by SSH-dependent checks
+// The outer Option is None until the SSH check completes.
+// Once set, multiple checks can share the Arc<SshSession> concurrently
+// because `russh::client::Handle` supports multiplexed channels.
+// Async always needs Arc<Mutex>, doesn't it?
 pub type SharedSshSession = Arc<TokioMutex<Option<Arc<SshSession>>>>;
 
-/// A live SSH session with helper methods.
 pub struct SshSession {
     session: russh::client::Handle<ssh::SshHandler>,
 }
 
 impl SshSession {
-    /// Execute a command and return stdout as a string.
     pub async fn exec(&self, command: &str) -> Result<String, String> {
         let mut channel = self
             .session
@@ -63,7 +62,7 @@ impl SshSession {
     }
 }
 
-/// Run a single check by ID.
+// run a single check by ID
 pub async fn run_check(
     check_id: CheckId,
     config: &Config,
@@ -90,9 +89,9 @@ pub async fn run_check(
     }
 }
 
-/// Run all checks with dependency-aware scheduling.
-/// Non-SSH-dependent checks run in parallel immediately.
-/// SSH check runs first, then SSH-dependent checks run in parallel.
+// Ru@n all checks with dependency-aware scheduling.
+// Non-SSH-dependent checks run in parallel immediately.
+// SSH check runs first, then SSH-dependent checks run in parallel.
 pub fn run_all(
     config: Config,
     states: SharedStates,
@@ -105,12 +104,12 @@ pub fn run_all(
         let total_start = Instant::now();
         let defs = all_checks();
 
-        // Phase 1: Run non-SSH-dependent checks in parallel + SSH check
+        // first run non-SSH-dependent checks in parallel + SSH check
         let mut handles = Vec::new();
 
         for def in &defs {
             if def.depends_on_ssh {
-                continue; // Phase 2
+                continue; // -> 2
             }
 
             let id = def.id;
@@ -118,7 +117,7 @@ pub fn run_all(
             let ssh = ssh_session.clone();
             let st = states.clone();
 
-            // Mark as running
+            // mark as running
             {
                 let mut guard = st.lock().unwrap();
                 if let Some(s) = guard.iter_mut().find(|s| s.def.id == id) {
@@ -143,12 +142,12 @@ pub fn run_all(
             handles.push(handle);
         }
 
-        // Wait for all phase 1 checks (including SSH)
+        // wait for all phase 1 checks (including SSH)
         for h in handles {
             let _ = h.await;
         }
 
-        // Phase 2: Run SSH-dependent checks in parallel
+        // 2: Run SSH-dependent checks in parallel
         let mut handles2 = Vec::new();
 
         for def in &defs {
@@ -189,12 +188,11 @@ pub fn run_all(
             let _ = h.await;
         }
 
-        // Record total duration
         let _total_elapsed = total_start.elapsed();
     });
 }
 
-/// Run a single check on a background task.
+
 pub fn run_single(
     check_id: CheckId,
     config: Config,
@@ -204,7 +202,6 @@ pub fn run_single(
 ) {
     let config = Arc::new(config);
 
-    // Mark as running
     {
         let mut guard = states.lock().unwrap();
         if let Some(s) = guard.iter_mut().find(|s| s.def.id == check_id) {

@@ -3,9 +3,10 @@ use crate::types::*;
 pub async fn run(config: &Config) -> Vec<CheckResult> {
     let target = &config.target;
 
-    // Use system ping command — cross-platform
+    // using system ping command — cross-platform: ping is everywhere (except maybe docker slims, etc..)
+    // linux requires root for raw sockets, but `ping` binary is usually setuid root, so that works without extra permissions
     let (cmd, args) = if cfg!(windows) {
-        ("ping", vec!["-n", "1", "-w", "5000", target.as_str()])
+        ("ping", vec!["-n", "1", "-w", "5000", target.as_str()]) // -c means something else on windows
     } else {
         ("ping", vec!["-c", "1", "-W", "5", target.as_str()])
     };

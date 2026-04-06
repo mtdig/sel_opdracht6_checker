@@ -1,8 +1,8 @@
 use reqwest::ClientBuilder;
 use std::time::Duration;
 
-/// Build a reqwest client that skips TLS certificate verification.
-/// This is needed because student VMs use self-signed certificates.
+/// reqwest client that skips TLS certificate verification
+/// needed because the opdracht6 VMs use self-signed certificates and without DN
 pub fn insecure_client() -> reqwest::Client {
     ClientBuilder::new()
         .danger_accept_invalid_certs(true)

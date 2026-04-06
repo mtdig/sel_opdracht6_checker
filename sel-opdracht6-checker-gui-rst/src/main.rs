@@ -1,6 +1,8 @@
 // SELab Opdracht 6 Checker — Rust/egui edition
-// Equivalent of the Java/JavaFX GUI
+// Equivalent of the Java/JavaFX GUI, but less painful (with AI's help)
 
+
+// windows is a different animal
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod checks;
@@ -14,7 +16,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex as TokioMutex;
 use types::*;
 
-// ─── Colours ────────────────────────────────────────────────────────────────
 
 const COL_BG: egui::Color32 = egui::Color32::from_rgb(30, 30, 36);
 const COL_SIDE: egui::Color32 = egui::Color32::from_rgb(24, 24, 30);
@@ -39,7 +40,8 @@ fn status_color(s: CheckStatus) -> egui::Color32 {
     }
 }
 
-// ─── App state ──────────────────────────────────────────────────────────────
+
+//  App state 
 
 #[derive(PartialEq, Clone)]
 enum View {
@@ -48,29 +50,24 @@ enum View {
 }
 
 struct App {
-    // Inputs
     target: String,
     local_user: String,
     passphrase: String,
     status_msg: String,
     status_ok: bool,
 
-    // Shared state
     states: SharedStates,
     ssh_session: SharedSshSession,
     config: Option<Config>,
     app_config: AppConfig,
 
-    // Tokio runtime handle
     rt: tokio::runtime::Handle,
 
-    // View state
     view: View,
     running: bool,
     run_start: Option<Instant>,
     total_duration: Duration,
 
-    // Summary popup
     show_summary: bool,
     summary_shown_for_run: bool,
 }
@@ -104,7 +101,7 @@ impl App {
         }
     }
 
-    // ─── helpers ─────────────────────────────────────────────────────────
+    //  helpers, move to it's own module later?
 
     fn is_all_done(&self) -> bool {
         let guard = self.states.lock().unwrap();
@@ -185,7 +182,7 @@ impl App {
         }
     }
 
-    // ─── actions ─────────────────────────────────────────────────────────
+    //  actions 
 
     fn on_run_all(&mut self) {
         self.status_msg.clear();
@@ -253,8 +250,11 @@ impl App {
     }
 }
 
-// ─── egui rendering ─────────────────────────────────────────────────────────
-
+//  egui rendering - lots of AI generated code here, not much to explain
+// didn't want to handle all ui alligning and coloring manually, so I let the AI do it based on some examples and tweaks
+// I will spend more time with egui, because it seems what i want and i can use it with WASM.
+// Tauri is also interesting, but I want to avoid the web stack if possible, and egui can do native and WASM with the same codebase.
+// leptos is pretty awesome and also does WASM
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Poll for completion
@@ -303,7 +303,7 @@ impl eframe::App for App {
 }
 
 impl App {
-    // ─── Side panel ──────────────────────────────────────────────────────
+    //  Side panel 
 
     fn draw_side_panel(&mut self, ui: &mut egui::Ui) {
         ui.add_space(12.0);
@@ -356,7 +356,7 @@ impl App {
         // Status
         if !self.status_msg.is_empty() {
             let color = if self.status_ok { COL_PASS } else { COL_FAIL };
-            ui.label(egui::RichText::new(&self.status_msg).color(color).small());
+            ui.label(egui::RichText::new(&self.status_msg).color(color).size(12.0));
         }
 
         // Stats
@@ -414,7 +414,7 @@ impl App {
         ui.add_space(8.0);
     }
 
-    // ─── Grid view ───────────────────────────────────────────────────────
+    //  Grid view 
 
     fn draw_grid(&mut self, ui: &mut egui::Ui) {
         ui.add_space(12.0);
@@ -535,7 +535,7 @@ impl App {
         parts.join(" · ")
     }
 
-    // ─── Detail view ─────────────────────────────────────────────────────
+    //  Detail view 
 
     fn draw_detail(&mut self, ui: &mut egui::Ui, section: Section) {
         ui.add_space(8.0);
@@ -620,7 +620,7 @@ impl App {
                 if cs.duration.as_millis() > 0 {
                     meta += &format!("  |  Duration: {:.1}s", cs.duration.as_secs_f64());
                 }
-                ui.label(egui::RichText::new(meta).color(COL_TEXT_DIM).small());
+                ui.label(egui::RichText::new(meta).color(COL_TEXT_DIM).size(12.0));
 
                 // Progress bar while running
                 if cs.status == CheckStatus::Running {
@@ -639,9 +639,9 @@ impl App {
 
                     for r in &cs.results {
                         let (icon, icon_col) = match r.status {
-                            CheckStatus::Pass => ("✅ PASS", COL_PASS),
-                            CheckStatus::Fail => ("❌ FAIL", COL_FAIL),
-                            CheckStatus::Skip => ("⚠ SKIP", COL_SKIP),
+                            CheckStatus::Pass => ("PASS", COL_PASS),
+                            CheckStatus::Fail => ("FAIL", COL_FAIL),
+                            CheckStatus::Skip => ("SKIP", COL_SKIP),
                             _ => ("——", COL_NOT_RUN),
                         };
 
@@ -649,7 +649,6 @@ impl App {
                             ui.label(
                                 egui::RichText::new(icon)
                                     .color(icon_col)
-                                    .small()
                                     .strong(),
                             );
                             ui.label(egui::RichText::new(&r.message).color(COL_TEXT));
@@ -661,7 +660,7 @@ impl App {
                                 ui.label(
                                     egui::RichText::new(format!("   {}", r.detail))
                                         .color(COL_TEXT_DIM)
-                                        .small(),
+                                        .size(12.0),
                                 );
                             });
                         }
@@ -674,7 +673,7 @@ impl App {
                     let is_running = cs.status == CheckStatus::Running;
                     let label = if is_running { "Running…" } else { "▶ Run" };
                     let btn = egui::Button::new(
-                        egui::RichText::new(label).color(egui::Color32::WHITE).small(),
+                        egui::RichText::new(label).color(egui::Color32::WHITE).size(12.0),
                     )
                     .fill(if is_running {
                         COL_RUNNING
@@ -695,7 +694,7 @@ impl App {
         run_clicked
     }
 
-    // ─── Summary popup window (overlay) ────────────────────────────────
+    //  Summary popup window (overlay) 
 
     fn draw_summary_window(&mut self, ctx: &egui::Context) {
         let pass = self.count(CheckStatus::Pass);
@@ -789,7 +788,6 @@ impl App {
                                                 ui.label(
                                                     egui::RichText::new(icon)
                                                         .color(icon_col)
-                                                        .small()
                                                         .strong(),
                                                 );
                                                 ui.label(
@@ -804,8 +802,7 @@ impl App {
                                             ui.add_space(24.0);
                                             ui.label(
                                                 egui::RichText::new(format!("   {}", r.detail))
-                                                    .color(COL_TEXT_DIM)
-                                                    .small(),
+                                                    .color(COL_TEXT_DIM),
                                             );
                                         });
                                     }
@@ -855,7 +852,7 @@ impl App {
     }
 }
 
-// ─── main ────────────────────────────────────────────────────────────────────
+//  main 
 
 fn main() -> eframe::Result<()> {
     // Handle --config: dump embedded config to stdout and exit
