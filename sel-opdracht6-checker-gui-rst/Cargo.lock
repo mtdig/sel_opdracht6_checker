@@ -3353,7 +3353,7 @@ checksum = "689224d06523904ebcc9b482c6a3f4f7fb396096645c4cd10c0d2ff7371a34d3"
 
 [[package]]
 name = "sel-checker"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "aes",
  "async-trait",

@@ -5,7 +5,16 @@ Automated checker for the SELab opdracht6 assignment.  Available as:
 - **Portable binary** (recommended) — single static executable, no dependencies, works on Linux / macOS / Windows × amd64 / arm64
 - **Docker container** — for Linux/macOS hosts that already have Docker
 
-## Option A: Portable binary (recommended)
+## Option A: Portable binary - GUI
+
+No dependencies required.  Just put in the ip, local user and decryption passphrase and run.
+
+Download latest release for [Windows (x86_64)](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-windows-amd64.exe), [macos (arm64)](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-macos-arm64) and linux ([x86_64](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-linux-amd64), [aarch64](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-linux-arm64))
+<div style="text-align: center;">
+  <img src="img/sel-checker-gui-rust.webp" style="width: 800px;"></img>
+</div>
+
+## Option B: Portable binary (recommended) CLI
 
 Download the zip for your platform from the
 [Releases](https://github.com/mtdig/sel-opdracht6-checker/releases) page.
