@@ -9,7 +9,7 @@ TARGET="${TARGET:-192.168.56.20}"
 LOCAL_USER="${LOCAL_USER:-$(whoami)}"
 
 #  Secrets (decrypted at runtime via openssl) 
-SECRETS_FILE="/secrets.env.enc"
+SECRETS_FILE="secrets.env.enc"
 
 if [[ -z "${DECRYPT_PASS:-}" ]]; then
     echo -e "\e[31mERROR: DECRYPT_PASS is not set.\e[0m"

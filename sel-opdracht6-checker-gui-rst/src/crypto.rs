@@ -88,6 +88,8 @@ fn decrypt_bytes(data: &[u8], passphrase: &str) -> Result<Vec<u8>, CryptoError> 
         .decrypt_padded_mut::<Pkcs7>(&mut buf)
         .map_err(|_| CryptoError::DecryptionFailed)?;
 
+    dbg!("Decryption successful, plaintext: {}", String::from_utf8_lossy(plaintext));
+
     Ok(plaintext.to_vec())
 }
 
