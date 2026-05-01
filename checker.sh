@@ -44,6 +44,7 @@ VAULTWARDEN_URL="https://${TARGET}:4123"
 PLANKA_URL="http://${TARGET}:3000"
 WP_URL="http://${TARGET}:8080"
 APACHE_URL="https://${TARGET}"
+APACHE_EXPECTED_TEXT="Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!"
 MINETEST_PORT=30000
 TRACE_DELAY_MS="${TRACE_DELAY_MS:-0}"
 
@@ -178,6 +179,7 @@ check_apache_https() {
     local http_code body
     body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${APACHE_URL}" 2>/dev/null || echo "000")
     http_code=$(echo "$body" | tail -1)
+    # remove the last line (HTTP code) from body
     body=$(echo "$body" | sed '$d')
     trace_done
 
@@ -190,13 +192,13 @@ check_apache_https() {
     fi
 
     trace "grep verwachte tekst in response body"
-    if echo "$body" | grep -q 'Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!'; then
+    if echo "$body" | grep -q "${APACHE_EXPECTED_TEXT}"; then
         trace_done
-        pass "Apache index.html bevat de verwachte tekst: 'Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!'"
+        pass "Apache index.html bevat de verwachte tekst: '${APACHE_EXPECTED_TEXT}'"
     else
         trace_done
         fail "Apache index.html bevat niet de verwachte tekst" \
-             "Verwacht: 'Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!'"
+             "Verwacht: '${APACHE_EXPECTED_TEXT}'"
     fi
 }
 
@@ -534,6 +536,17 @@ check_docker_compose() {
         pass "Portainer gebruikt een Docker volume voor data"
     else
         fail "Portainer gebruikt geen Docker volume voor data"
+    fi
+
+    trace "ssh ${SSH_USER}@${TARGET} test -f ~/docker/docker-compose.yml"
+    local shared_compose
+    shared_compose=$(ssh_cmd "test -f ~/docker/docker-compose.yml && echo ok || test -f ~/docker/compose.yml && echo ok || echo nok")
+    trace_done
+    if [[ "$shared_compose" == *"ok"* ]]; then
+        pass "Gedeeld docker-compose bestand aanwezig in ~/docker/"
+    else
+        fail "Geen docker-compose bestand in ~/docker/" \
+             "Verwacht ~/docker/docker-compose.yml of compose.yml"
     fi
 
     trace "ssh ${SSH_USER}@${TARGET} test -f ~/docker/planka/docker-compose.yml"
