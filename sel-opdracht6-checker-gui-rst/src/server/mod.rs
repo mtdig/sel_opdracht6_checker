@@ -679,10 +679,10 @@ pub async fn run(port: u16) {
     let env_user   = std::env::var("LOCAL_USER").unwrap_or_default();
 
     if !passphrase.is_empty() {
-        println!("🔑  PASSPHRASE loaded from environment");
+        println!("PASSPHRASE loaded from environment");
     }
     if !env_target.is_empty() {
-        println!("🎯  TARGET={env_target}");
+        println!("TARGET={env_target}");
     }
 
     let state = Arc::new(ServerState::new(AppConfig::load(), passphrase, env_target, env_user));
@@ -699,8 +699,8 @@ pub async fn run(port: u16) {
         .with_state(state);
 
     let addr = format!("0.0.0.0:{port}");
-    println!("🌐  SELab checker web UI  →  http://localhost:{port}");
-    println!("    API docs: GET /api/status  |  POST /api/run  |  POST /api/run/:check");
+    println!("SELab checker web UI  →  http://localhost:{port}");
+    println!("API docs: GET /api/status  |  POST /api/run  |  POST /api/run/:check");
     let listener = tokio::net::TcpListener::bind(&addr).await
         .unwrap_or_else(|e| panic!("Failed to bind {addr}: {e}"));
     axum::serve(listener, router).await.expect("Server error");
