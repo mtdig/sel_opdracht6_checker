@@ -1,0 +1,65 @@
+<!-- Section detail fragment -->
+<div id="detail-panel">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span style="display:inline-block; width:14px; height:14px; border-radius:3px;
+                 background:{{ section.color }}; flex-shrink:0"></span>
+    <h5 class="mb-0" style="color:#e6edf3">{{ section.label }}</h5>
+    {% if running %}
+    <span style="color:#3884f4; font-size:.78rem; margin-left:auto">running…</span>
+    {% endif %}
+  </div>
+
+  {% for check in section.checks %}
+  <div class="mb-3" style="background:#161b22; border:1px solid #30363d;
+                            border-radius:8px; overflow:hidden">
+    <!-- check header -->
+    <div class="d-flex align-items-center gap-2"
+         style="padding:10px 14px; border-bottom:1px solid #21262d">
+      <span style="font-size:.82rem; font-weight:600; color:#e6edf3">{{ check.name }}</span>
+      <span class="ms-auto badge"
+            style="background:{{ check.color }}22; color:{{ check.color }};
+                   border:1px solid {{ check.color }}55; font-size:.7rem">{{ check.status }}</span>
+      <button onclick="runSingle('{{ check.id }}')"
+              {% if running %}disabled{% endif %}
+              style="background:transparent; border:1px solid #30363d; color:#8b949e;
+                     border-radius:5px; font-size:.72rem; padding:2px 8px; cursor:pointer"
+              title="Run this check">▶ Run</button>
+    </div>
+
+    <!-- meta row: protocol / port / duration -->
+    {% if check.protocol != "" || check.port != "" %}
+    <div class="d-flex gap-3" style="padding:6px 14px; border-bottom:1px solid #21262d;
+                                     font-size:.73rem; color:#6e7681">
+      {% if check.protocol != "" %}
+        <span>{{ check.protocol }}</span>
+      {% endif %}
+      {% if check.port != "" %}
+        <span>port {{ check.port }}</span>
+      {% endif %}
+      {% if check.duration_ms > 0 %}
+        <span>{{ check.duration_ms }} ms</span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- result rows -->
+    {% if check.results.len() > 0 %}
+    <div style="padding:8px 14px">
+      {% for r in check.results %}
+      <div class="d-flex align-items-start gap-2 mb-1" style="font-size:.78rem">
+        <span style="color:{{ r.color }}; flex-shrink:0">{{ r.icon }}</span>
+        <div>
+          <span style="color:#c9d1d9">{{ r.message }}</span>
+          {% if r.detail != "" %}
+            <div style="color:#6e7681; font-size:.71rem; white-space:pre-wrap; margin-top:2px">{{ r.detail }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="padding:8px 14px; font-size:.75rem; color:#444">No results yet.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>

@@ -9,3 +9,5 @@ target/
 .zig-cache/
 zig-output/
 zig-pkg/
+
+.env

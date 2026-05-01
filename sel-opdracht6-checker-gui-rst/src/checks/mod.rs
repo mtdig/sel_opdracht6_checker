@@ -200,8 +200,15 @@ pub fn run_single(
     ssh_session: SharedSshSession,
     rt: tokio::runtime::Handle,
 ) {
+    let needs_ssh = all_checks()
+        .into_iter()
+        .find(|d| d.id == check_id)
+        .map(|d| d.depends_on_ssh)
+        .unwrap_or(false);
+
     let config = Arc::new(config);
 
+    // Mark the target check as running immediately.
     {
         let mut guard = states.lock().unwrap();
         if let Some(s) = guard.iter_mut().find(|s| s.def.id == check_id) {
@@ -212,15 +219,39 @@ pub fn run_single(
     }
 
     rt.spawn(async move {
+        // If this check needs SSH but no session is established yet, run the SSH
+        // check first so the session is available.
+        if needs_ssh && ssh_session.lock().await.is_some() == false {
+            {
+                let mut guard = states.lock().unwrap();
+                if let Some(s) = guard.iter_mut().find(|s| s.def.id == CheckId::Ssh) {
+                    s.status = CheckStatus::Running;
+                    s.results.clear();
+                    s.duration = std::time::Duration::ZERO;
+                }
+            }
+            let ssh_start = Instant::now();
+            let ssh_results = run_check(CheckId::Ssh, &config, &ssh_session).await;
+            let ssh_elapsed = ssh_start.elapsed();
+            {
+                let mut guard = states.lock().unwrap();
+                if let Some(s) = guard.iter_mut().find(|s| s.def.id == CheckId::Ssh) {
+                    s.results  = ssh_results;
+                    s.duration = ssh_elapsed;
+                    s.status   = s.derive_overall_status();
+                }
+            }
+        }
+
         let start = Instant::now();
         let results = run_check(check_id, &config, &ssh_session).await;
         let elapsed = start.elapsed();
 
         let mut guard = states.lock().unwrap();
         if let Some(s) = guard.iter_mut().find(|s| s.def.id == check_id) {
-            s.results = results;
+            s.results  = results;
             s.duration = elapsed;
-            s.status = s.derive_overall_status();
+            s.status   = s.derive_overall_status();
         }
     });
 }

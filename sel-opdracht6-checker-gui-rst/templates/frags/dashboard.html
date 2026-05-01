@@ -1,0 +1,17 @@
+<!-- HTMX-polled section-cards grid. The outer div re-emits the hx-* attrs so polling continues after swap. -->
+<div id="dashboard"
+     hx-get="/fragments/dashboard"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML">
+{% for sec in sections %}
+  <div class="sec-card" style="--accent: {{ sec.color }}"
+       onclick="showSection('{{ sec.id }}')">
+    <div class="sec-accent" style="background: {{ sec.color }}"></div>
+    <div class="sec-body">
+      <div style="font-weight:600; color:#dde; font-size:.93rem">{{ sec.label }}</div>
+      <div style="color:#777; font-size:.75rem">{{ sec.check_count }} checks</div>
+      <div style="color: {{ sec.color }}; font-size:.75rem; margin-top:3px">{{ sec.summary }}</div>
+    </div>
+  </div>
+{% endfor %}
+</div>

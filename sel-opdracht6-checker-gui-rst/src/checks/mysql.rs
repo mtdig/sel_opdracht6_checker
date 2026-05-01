@@ -43,16 +43,17 @@ pub async fn run_remote(config: &Config, ssh_session: &SharedSshSession) -> Vec<
             Ok(out) if out.contains('1') => {
                 results.push(CheckResult::pass(format!(
                     "Database {db} reachable as {user}"
-                )));
+                )).with_cmd(&cmd, &out));
             }
-            Ok(_) => {
+            Ok(out) => {
                 results.push(CheckResult::fail(
                     format!("Database {db} not reachable as {user}"),
                     format!("Check if database {db} exists and user has access"),
-                ));
+                ).with_cmd(&cmd, &out));
             }
             Err(e) => {
-                results.push(CheckResult::fail(format!("Database {db} check failed"), e));
+                results.push(CheckResult::fail(format!("Database {db} check failed"), &e)
+                    .with_cmd(&cmd, ""));
             }
         }
     } else {
@@ -87,16 +88,16 @@ pub async fn run_local(config: &Config, ssh_session: &SharedSshSession) -> Vec<C
         Ok(out) if out.contains('1') => {
             vec![CheckResult::pass(format!(
                 "MySQL locally reachable via SSH as {user}"
-            ))]
+            )).with_cmd(&cmd, &out)]
         }
-        Ok(_) => {
+        Ok(out) => {
             vec![CheckResult::fail(
                 format!("MySQL locally not reachable as {user}"),
                 "Check if admin user exists with correct privileges",
-            )]
+            ).with_cmd(&cmd, &out)]
         }
         Err(e) => {
-            vec![CheckResult::fail("MySQL local check failed", e)]
+            vec![CheckResult::fail("MySQL local check failed", &e).with_cmd(&cmd, "")]
         }
     }
 }
@@ -131,19 +132,19 @@ pub async fn run_admin(config: &Config, ssh_session: &SharedSshSession) -> Vec<C
         {
             vec![CheckResult::pass(
                 "MySQL admin is not reachable remotely (correct)",
-            )]
+            ).with_cmd(&cmd, &out)]
         }
-        Ok(_) => {
+        Ok(out) => {
             vec![CheckResult::fail(
                 "MySQL admin is reachable remotely",
                 "Should only be accessible locally",
-            )]
+            ).with_cmd(&cmd, &out)]
         }
-        Err(_) => {
+        Err(e) => {
             // Connection error means blocked -> pass
             vec![CheckResult::pass(
                 "MySQL admin is not reachable remotely (correct)",
-            )]
+            ).with_cmd(&cmd, &e)]
         }
     }
 }

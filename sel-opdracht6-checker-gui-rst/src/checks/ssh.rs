@@ -83,19 +83,19 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
             *ssh_session.lock().await = Some(ssh);
             vec![CheckResult::pass(format!(
                 "SSH connection as {user} on port {port}"
-            ))]
+            )).with_cmd("echo ok", &out)]
         }
-        Ok(_) => {
+        Ok(out) => {
             vec![CheckResult::fail(
                 format!("SSH connection as {user} on port {port}"),
                 "Could not verify SSH session",
-            )]
+            ).with_cmd("echo ok", &out)]
         }
         Err(e) => {
             vec![CheckResult::fail(
                 format!("SSH connection as {user} on port {port}"),
                 format!("echo ok failed: {e}"),
-            )]
+            ).with_cmd("echo ok", "")]
         }
     }
 }

@@ -37,16 +37,16 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
         "cat > {remote_path} << 'HTMLEOF'\n{html}\nHTMLEOF"
     );
     match ssh.exec(&upload_cmd).await {
-        Ok(_) => {
+        Ok(out) => {
             results.push(CheckResult::pass(format!(
                 "SFTP upload to {remote_path} as {user}"
-            )));
+            )).with_cmd(&upload_cmd, &out));
         }
         Err(e) => {
             return vec![CheckResult::fail(
                 format!("SFTP upload to {remote_path}"),
                 format!("Upload failed: {e}"),
-            )];
+            ).with_cmd(&upload_cmd, "")];
         }
     }
 

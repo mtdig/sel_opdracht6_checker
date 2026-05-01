@@ -27,17 +27,19 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
             let running: Vec<&str> = out.lines().map(|l| l.trim()).collect();
             for name in expected_containers {
                 if running.iter().any(|r| r.contains(name)) {
-                    results.push(CheckResult::pass(format!("Container '{name}' is running")));
+                    results.push(CheckResult::pass(format!("Container '{name}' is running"))
+                        .with_cmd("docker ps --format '{{.Names}}'", &out));
                 } else {
                     results.push(CheckResult::fail(
                         format!("Container '{name}' not running"),
                         format!("Running: {}", running.join(", ")),
-                    ));
+                    ).with_cmd("docker ps --format '{{.Names}}'", &out));
                 }
             }
         }
         Err(e) => {
-            results.push(CheckResult::fail("Could not list Docker containers", e));
+            results.push(CheckResult::fail("Could not list Docker containers", &e)
+                .with_cmd("docker ps --format '{{.Names}}'", ""));
         }
     }
 
@@ -63,13 +65,14 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
                         let dest = segs.get(2).unwrap_or(&"?");
                         results.push(CheckResult::pass(format!(
                             "{name}: {mount_type} mount -> {dest}"
-                        )));
+                        )).with_cmd("docker inspect --format '{{.Name}} {{range .Mounts}}...'", &out));
                     }
                 }
             }
         }
         Err(e) => {
-            results.push(CheckResult::fail("Could not inspect Docker mounts", e));
+            results.push(CheckResult::fail("Could not inspect Docker mounts", &e)
+                .with_cmd("docker inspect --format '{{.Name}} {{range .Mounts}}...'", ""));
         }
     }
 
@@ -79,16 +82,18 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
     );
     match ssh.exec(&shared_cmd).await {
         Ok(out) if out.contains("COMPOSE_OK") => {
-            results.push(CheckResult::pass(format!("Shared compose in {shared_compose_path}/")));
+            results.push(CheckResult::pass(format!("Shared compose in {shared_compose_path}/"))
+                .with_cmd(&shared_cmd, &out));
         }
-        Ok(_) => {
+        Ok(out) => {
             results.push(CheckResult::fail(
-                format!("No compose in {shared_compose_path}/"),
+                format!("Shared compose not found in {shared_compose_path}/"),
                 "Expected docker-compose.yml or compose.yml",
-            ));
+            ).with_cmd(&shared_cmd, &out));
         }
         Err(e) => {
-            results.push(CheckResult::fail("Could not check for shared compose file", e));
+            results.push(CheckResult::fail("Could not check for shared compose file", &e)
+                .with_cmd(&shared_cmd, ""));
         }
     }
 
@@ -98,16 +103,18 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
     );
     match ssh.exec(&planka_cmd).await {
         Ok(out) if out.contains("COMPOSE_OK") => {
-            results.push(CheckResult::pass(format!("Planka compose in {planka_compose_path}/")));
+            results.push(CheckResult::pass(format!("Planka compose in {planka_compose_path}/"))
+                .with_cmd(&planka_cmd, &out));
         }
-        Ok(_) => {
+        Ok(out) => {
             results.push(CheckResult::fail(
                 format!("No compose in {planka_compose_path}/"),
                 "Expected docker-compose.yml or compose.yml",
-            ));
+            ).with_cmd(&planka_cmd, &out));
         }
         Err(e) => {
-            results.push(CheckResult::fail("Could not check for Planka compose file", e));
+            results.push(CheckResult::fail("Could not check for Planka compose file", &e)
+                .with_cmd(&planka_cmd, ""));
         }
     }
 

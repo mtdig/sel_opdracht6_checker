@@ -120,14 +120,15 @@ pub async fn run_db(config: &Config, ssh_session: &SharedSshSession) -> Vec<Chec
         Ok(out) => {
             let trimmed = out.trim();
             if trimmed.contains('1') {
-                vec![CheckResult::pass(format!("WordPress database {wpdb} reachable via SSH"))]
+                vec![CheckResult::pass(format!("WordPress database {wpdb} reachable via SSH"))
+                    .with_cmd(&cmd, &out)]
             } else {
                 vec![CheckResult::fail(
                     "WordPress DB query unexpected output",
                     trimmed,
-                )]
+                ).with_cmd(&cmd, &out)]
             }
         }
-        Err(e) => vec![CheckResult::fail("WordPress DB check failed", e)],
+        Err(e) => vec![CheckResult::fail("WordPress DB check failed", &e).with_cmd(&cmd, "")],
     }
 }

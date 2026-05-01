@@ -30,34 +30,51 @@ impl CheckStatus {
 
 #[derive(Debug, Clone)]
 pub struct CheckResult {
-    pub status: CheckStatus,
+    pub status:  CheckStatus,
     pub message: String,
-    pub detail: String,
+    pub detail:  String,
+    /// The shell command that was executed (empty for non-SSH checks)
+    pub command: String,
+    /// Raw stdout/stderr output of the command (empty if not applicable)
+    pub output:  String,
 }
 
 impl CheckResult {
     pub fn pass(msg: impl Into<String>) -> Self {
         Self {
-            status: CheckStatus::Pass,
+            status:  CheckStatus::Pass,
             message: msg.into(),
-            detail: String::new(),
+            detail:  String::new(),
+            command: String::new(),
+            output:  String::new(),
         }
     }
 
     pub fn fail(msg: impl Into<String>, detail: impl Into<String>) -> Self {
         Self {
-            status: CheckStatus::Fail,
+            status:  CheckStatus::Fail,
             message: msg.into(),
-            detail: detail.into(),
+            detail:  detail.into(),
+            command: String::new(),
+            output:  String::new(),
         }
     }
 
     pub fn skip(msg: impl Into<String>, reason: impl Into<String>) -> Self {
         Self {
-            status: CheckStatus::Skip,
+            status:  CheckStatus::Skip,
             message: msg.into(),
-            detail: reason.into(),
+            detail:  reason.into(),
+            command: String::new(),
+            output:  String::new(),
         }
+    }
+
+    /// Attach the SSH command and its raw output to this result.
+    pub fn with_cmd(mut self, command: impl Into<String>, output: impl Into<String>) -> Self {
+        self.command = command.into();
+        self.output  = output.into();
+        self
     }
 }
 

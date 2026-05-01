@@ -1,0 +1,27 @@
+<!-- HTMX-polled stats bar -->
+<div id="stats-bar"
+     hx-get="/fragments/stats"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML">
+{% if stats.total > 0 %}
+  <div class="d-flex gap-2 flex-wrap mb-1">
+    <span style="background:rgba(46,160,67,.15); border:1px solid rgba(46,160,67,.35);
+                 border-radius:6px; padding:4px 10px; font-size:.78rem; color:#2ea043">
+      <strong>{{ stats.passed }}</strong> passed
+    </span>
+    <span style="background:rgba(218,54,51,.15); border:1px solid rgba(218,54,51,.35);
+                 border-radius:6px; padding:4px 10px; font-size:.78rem; color:#da3633">
+      <strong>{{ stats.failed }}</strong> failed
+    </span>
+    <span style="background:rgba(210,153,34,.15); border:1px solid rgba(210,153,34,.35);
+                 border-radius:6px; padding:4px 10px; font-size:.78rem; color:#d29922">
+      <strong>{{ stats.skipped }}</strong> skipped
+    </span>
+  </div>
+  <div style="color:#555; font-size:.72rem">{{ stats.total }} total results
+  {% if stats.running %} · <span style="color:#3884f4">running…</span>{% endif %}
+  </div>
+{% else %}
+  <div style="color:#444; font-size:.75rem">Not yet run</div>
+{% endif %}
+</div>

@@ -7,6 +7,7 @@
 
 mod checks;
 mod crypto;
+mod server;
 mod types;
 
 use checks::SharedSshSession;
@@ -238,15 +239,45 @@ impl App {
     }
 
     fn on_run_single(&mut self, check_id: CheckId) {
-        if let Some(config) = &self.config {
-            checks::run_single(
-                check_id,
-                config.clone(),
-                self.states.clone(),
-                self.ssh_session.clone(),
-                self.rt.clone(),
-            );
-        }
+        // Use cached config if available, otherwise build from current form fields.
+        let config = if let Some(c) = &self.config {
+            c.clone()
+        } else {
+            if self.target.trim().is_empty() {
+                self.status_msg = "Target is required.".into();
+                self.status_ok = false;
+                return;
+            }
+            if self.passphrase.is_empty() {
+                self.status_msg = "Passphrase is required.".into();
+                self.status_ok = false;
+                return;
+            }
+            let secrets_map = match crypto::decrypt_secrets(&self.passphrase) {
+                Ok(m) => m,
+                Err(e) => {
+                    self.status_msg = format!("Decryption failed: {e}");
+                    self.status_ok = false;
+                    return;
+                }
+            };
+            let cfg = Config {
+                target:     self.target.trim().to_string(),
+                local_user: self.local_user.trim().to_string(),
+                secrets:    Secrets::from_map(&secrets_map),
+                app:        self.app_config.clone(),
+            };
+            self.config = Some(cfg.clone());
+            cfg
+        };
+
+        checks::run_single(
+            check_id,
+            config,
+            self.states.clone(),
+            self.ssh_session.clone(),
+            self.rt.clone(),
+        );
     }
 }
 
@@ -858,6 +889,21 @@ fn main() -> eframe::Result<()> {
     // Handle --config: dump embedded config to stdout and exit
     if std::env::args().any(|a| a == "--config") {
         print!("{}", AppConfig::EMBEDDED_TOML);
+        return Ok(());
+    }
+
+    // Handle --server [--port N]: start web server mode
+    let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--server") {
+        let port = args.windows(2)
+            .find(|w| w[0] == "--port")
+            .and_then(|w| w[1].parse::<u16>().ok())
+            .unwrap_or(8080);
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create tokio runtime");
+        rt.block_on(server::run(port));
         return Ok(());
     }
 

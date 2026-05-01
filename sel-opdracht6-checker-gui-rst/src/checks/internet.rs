@@ -22,19 +22,19 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
     );
     match ssh.exec(&cmd).await {
         Ok(out) if out.contains("INET_OK") => {
-            vec![CheckResult::pass("VM has internet access")]
+            vec![CheckResult::pass("VM has internet access").with_cmd(&cmd, &out)]
         }
-        Ok(_) => {
+        Ok(out) => {
             vec![CheckResult::fail(
                 "VM has no internet access",
                 format!("ping {ping_target} from VM failed"),
-            )]
+            ).with_cmd(&cmd, &out)]
         }
         Err(e) => {
             vec![CheckResult::fail(
                 "Internet check failed",
-                e,
-            )]
+                &e,
+            ).with_cmd(&cmd, "")]
         }
     }
 }
