@@ -5,6 +5,20 @@ set -euo pipefail
 # SELab Opdracht6 Checker
 # ============================================================================
 
+# Verbosity: LOGLEVEL=INFO or -v = show commands + responses
+#            LOGLEVEL=TRACE or -vv = set -x per check
+case "${LOGLEVEL:-}" in
+    TRACE|trace|2) VERBOSE=2 ;;
+    INFO|info|1)   VERBOSE=1 ;;
+    *)             VERBOSE=0 ;;
+esac
+for _arg in "$@"; do
+    case "$_arg" in
+        -vv) VERBOSE=2 ;;
+        -v)  [[ "$VERBOSE" -lt 1 ]] && VERBOSE=1 ;;
+    esac
+done
+
 TARGET="${TARGET:-192.168.56.20}"
 LOCAL_USER="${LOCAL_USER:-$(whoami)}"
 
@@ -96,13 +110,30 @@ require_ssh() {
 }
 
 trace() {
-    echo -ne "${DIM}    → $1 ...${RESET}"
+    if [[ "$VERBOSE" -ge 1 ]]; then
+        echo -e "${DIM}    > $1${RESET}"
+    else
+        echo -ne "${DIM}    → $1 ...${RESET}"
+    fi
 }
 trace_done() {
-    if [[ "$TRACE_DELAY_MS" -gt 0 ]]; then
-        sleep "$(awk "BEGIN{printf \"%f\", ${TRACE_DELAY_MS}/1000}")" 
+    if [[ "$VERBOSE" -lt 1 ]]; then
+        if [[ "$TRACE_DELAY_MS" -gt 0 ]]; then
+            sleep "$(awk "BEGIN{printf \"%f\", ${TRACE_DELAY_MS}/1000}")"
+        fi
+        echo -ne "\r${CLEAR_LINE}"
     fi
-    echo -ne "\r${CLEAR_LINE}"
+}
+trace_output() {
+    [[ "$VERBOSE" -lt 1 || -z "${1:-}" ]] && return
+    local total
+    total=$(echo "$1" | wc -l)
+    echo "$1" | head -20 | while IFS= read -r _line; do
+        echo -e "      ${DIM}${_line}${RESET}"
+    done
+    if [[ "$total" -gt 20 ]]; then
+        echo -e "      ${DIM}... ($((total - 20)) more lines truncated)${RESET}"
+    fi
 }
 
 # Run a check function, on failure store its name for end summary
@@ -110,7 +141,13 @@ run_check() {
     local check_fn="$1"
     local failed_before=$FAILED
 
-    "$check_fn" || true
+    if [[ "$VERBOSE" -ge 2 ]]; then
+        set -x
+        "$check_fn" || true
+        set +x
+    else
+        "$check_fn" || true
+    fi
 
     if [[ "$FAILED" -gt "$failed_before" ]]; then
         FAILURE_LOGS+=("$check_fn")
@@ -163,7 +200,7 @@ check_internet() {
     trace "ssh ${SSH_USER}@${TARGET} 'ping -c 1 -W 3 8.8.8.8'"
     local result
     result=$(ssh_cmd "ping -c 1 -W 3 8.8.8.8 &>/dev/null && echo ok || echo nok" || echo "nok")
-    trace_done
+    trace_done; trace_output "$result"
     if [[ "$result" == *"ok"* ]]; then
         pass "VM heeft internettoegang"
     else
@@ -181,7 +218,7 @@ check_apache_https() {
     http_code=$(echo "$body" | tail -1)
     # remove the last line (HTTP code) from body
     body=$(echo "$body" | sed '$d')
-    trace_done
+    trace_done; trace_output "HTTP ${http_code}"$'\n'"${body}"
 
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "Apache bereikbaar via HTTPS op ${APACHE_URL} (HTTP ${http_code})"
@@ -256,7 +293,7 @@ EOF
     body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${check_url}" 2>/dev/null || echo "000")
     http_code=$(echo "$body" | tail -1)
     body=$(echo "$body" | sed '$d')
-    trace_done
+    trace_done; trace_output "HTTP ${http_code}"
 
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "opdracht6.html bereikbaar via HTTPS op ${check_url} (HTTP ${http_code})"
@@ -314,7 +351,7 @@ check_mysql_local_via_ssh() {
     trace "ssh ${SSH_USER}@${TARGET} mysql -u ${MYSQL_LOCAL_USER} -e 'SELECT 1'"
     local result
     result=$(ssh_cmd "mysql -u ${MYSQL_LOCAL_USER} -p'${MYSQL_LOCAL_PASS}' -e 'SELECT 1;' 2>/dev/null" || echo "error")
-    trace_done
+    trace_done; trace_output "$result"
     if [[ "$result" == *"1"* ]]; then
         pass "MySQL lokaal bereikbaar via SSH als ${MYSQL_LOCAL_USER}"
     else
@@ -342,7 +379,7 @@ check_wordpress_reachable() {
     trace "curl -sk ${WP_URL}"
     local http_code
     http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${WP_URL}" 2>/dev/null || echo "000")
-    trace_done
+    trace_done; trace_output "HTTP ${http_code}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "WordPress bereikbaar op ${WP_URL} (HTTP ${http_code})"
     else
@@ -357,7 +394,7 @@ check_wordpress_post() {
     response=$(curl -sk --connect-timeout 5 "${WP_URL}/?rest_route=/wp/v2/posts" 2>/dev/null || echo "[]")
     local count
     count=$(echo "$response" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo "0")
-    trace_done
+    trace_done; trace_output "posts=${count}"
 
     if [[ "$count" -gt 2 ]]; then
         pass "WordPress heeft minstens 3 post (${count} gevonden)"
@@ -396,7 +433,7 @@ check_wordpress_db() {
     trace "ssh ${SSH_USER}@${TARGET} mysql -u ${WP_USER} wpdb -e 'SELECT 1'"
     local result
     result=$(ssh_cmd "mysql -u ${WP_USER} -p'${WP_PASS}' wpdb -e 'SELECT 1;' 2>/dev/null" || echo "error")
-    trace_done
+    trace_done; trace_output "$result"
     if [[ "$result" == *"1"* ]]; then
         pass "WordPress database wpdb bestaat en is bereikbaar via SSH"
     else
@@ -411,7 +448,7 @@ check_portainer() {
     trace "curl -sk ${PORTAINER_URL}"
     local http_code
     http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${PORTAINER_URL}" 2>/dev/null || echo "000")
-    trace_done
+    trace_done; trace_output "HTTP ${http_code}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "Portainer bereikbaar via HTTPS op ${PORTAINER_URL} (HTTP ${http_code})"
     else
@@ -426,7 +463,7 @@ check_vaultwarden() {
     trace "curl -sk ${VAULTWARDEN_URL}"
     local http_code
     http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${VAULTWARDEN_URL}" 2>/dev/null || echo "000")
-    trace_done
+    trace_done; trace_output "HTTP ${http_code}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "Vaultwarden bereikbaar via HTTPS op ${VAULTWARDEN_URL} (HTTP ${http_code})"
     else
@@ -442,7 +479,7 @@ check_minetest() {
     trace "ssh ${SSH_USER}@${TARGET} docker ps --filter name=minetest"
     local ports
     ports=$(ssh_cmd "docker ps --filter name=minetest --format '{{.Ports}}' 2>/dev/null" || echo "")
-    trace_done
+    trace_done; trace_output "$ports"
 
     if echo "$ports" | grep -q "${MINETEST_PORT}"; then
         pass "Minetest container draait op UDP poort ${MINETEST_PORT}"
@@ -460,7 +497,7 @@ check_planka() {
     trace "curl -sk ${PLANKA_URL}"
     local http_code
     http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${PLANKA_URL}" 2>/dev/null || echo "000")
-    trace_done
+    trace_done; trace_output "HTTP ${http_code}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "Planka bereikbaar op ${PLANKA_URL} (HTTP ${http_code})"
     else
@@ -475,7 +512,7 @@ check_planka() {
         -H "Content-Type: application/json" \
         -d "{\"emailOrUsername\":\"troubleshoot@selab.hogent.be\",\"password\":\"shoot\"}" \
         2>/dev/null || echo "")
-    trace_done
+    trace_done; trace_output "$login_response"
 
     if echo "$login_response" | jq -e '.item' &>/dev/null; then
         pass "Planka login als troubleshoot@selab.hogent.be"
@@ -492,7 +529,7 @@ check_docker_compose() {
     trace "ssh ${SSH_USER}@${TARGET} docker ps"
     local containers
     containers=$(ssh_cmd "docker ps --format '{{.Names}}' 2>/dev/null" || echo "")
-    trace_done
+    trace_done; trace_output "$containers"
 
     for svc in vaultwarden minetest portainer; do
         if echo "$containers" | grep -qi "$svc"; then
@@ -511,7 +548,7 @@ check_docker_compose() {
     trace "ssh ${SSH_USER}@${TARGET} docker inspect vaultwarden (mounts)"
     local vw_mount
     vw_mount=$(ssh_cmd "docker inspect \$(docker ps -q --filter name=vaultwarden) --format '{{json .Mounts}}' 2>/dev/null" || echo "[]")
-    trace_done
+    trace_done; trace_output "$vw_mount"
     if echo "$vw_mount" | grep -q '"Type":"bind"'; then
         pass "Vaultwarden gebruikt een lokale map voor data"
     else
@@ -521,7 +558,7 @@ check_docker_compose() {
     trace "ssh ${SSH_USER}@${TARGET} docker inspect minetest (mounts)"
     local mt_mount
     mt_mount=$(ssh_cmd "docker inspect \$(docker ps -q --filter name=minetest) --format '{{json .Mounts}}' 2>/dev/null" || echo "[]")
-    trace_done
+    trace_done; trace_output "$mt_mount"
     if echo "$mt_mount" | grep -q '"Type":"bind"'; then
         pass "Minetest gebruikt een lokale map voor data"
     else
@@ -531,7 +568,7 @@ check_docker_compose() {
     trace "ssh ${SSH_USER}@${TARGET} docker inspect portainer (mounts)"
     local pt_mount
     pt_mount=$(ssh_cmd "docker inspect \$(docker ps -q --filter name=portainer) --format '{{json .Mounts}}' 2>/dev/null" || echo "[]")
-    trace_done
+    trace_done; trace_output "$pt_mount"
     if echo "$pt_mount" | grep -q '"Type":"volume"'; then
         pass "Portainer gebruikt een Docker volume voor data"
     else
@@ -541,7 +578,7 @@ check_docker_compose() {
     trace "ssh ${SSH_USER}@${TARGET} test -f ~/docker/docker-compose.yml"
     local shared_compose
     shared_compose=$(ssh_cmd "test -f ~/docker/docker-compose.yml && echo ok || test -f ~/docker/compose.yml && echo ok || echo nok")
-    trace_done
+    trace_done; trace_output "$shared_compose"
     if [[ "$shared_compose" == *"ok"* ]]; then
         pass "Gedeeld docker-compose bestand aanwezig in ~/docker/"
     else
@@ -552,7 +589,7 @@ check_docker_compose() {
     trace "ssh ${SSH_USER}@${TARGET} test -f ~/docker/planka/docker-compose.yml"
     local planka_compose
     planka_compose=$(ssh_cmd "test -f ~/docker/planka/docker-compose.yml && echo ok || test -f ~/docker/planka/compose.yml && echo ok || echo nok")
-    trace_done
+    trace_done; trace_output "$planka_compose"
     if [[ "$planka_compose" == *"ok"* ]]; then
         pass "Planka docker-compose bestand in ~/docker/planka/"
     else
