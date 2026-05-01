@@ -261,7 +261,7 @@ check_sftp_upload() {
 </html>
 HTMLEOF
 
-    # Step 1: Upload via SFTP
+    # 1: Upload via SFTP
     trace "sftp ${SSH_USER}@${TARGET} put opdracht6.html ${remote_path}"
     if sshpass -p "${SSH_PASS}" sftp \
         -o StrictHostKeyChecking=no \
@@ -282,12 +282,12 @@ EOF
         return
     fi
 
-    # Step 1b: Fix permissions so www-data can read the file
+    # 1b: Fix permissions so www-data can read the file
     trace "ssh ${SSH_USER}@${TARGET} chmod 644 ${remote_path}"
     ssh_cmd "chmod 644 ${remote_path}" &>/dev/null || true
     trace_done
 
-    # Step 2: Fetch the page via HTTPS and verify the username is present
+    # 2: Fetch the page via HTTPS and verify the username is present
     trace "curl -sk ${check_url}"
     local body http_code
     body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${check_url}" 2>/dev/null || echo "000")

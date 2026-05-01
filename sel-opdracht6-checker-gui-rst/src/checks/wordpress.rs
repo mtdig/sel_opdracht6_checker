@@ -5,20 +5,23 @@ use crate::types::*;
 pub async fn run_reachable(config: &Config) -> Vec<CheckResult> {
     let port = config.app.wordpress.port;
     let url = format!("http://{}:{port}", config.target);
+    let cmd = format!("GET {url}");
     match http_helper::get(&url).await {
         Ok(resp) if resp.status < 400 => {
+            let out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
             vec![CheckResult::pass(format!(
                 "WordPress reachable (HTTP {})",
                 resp.status
-            ))]
+            )).with_cmd(&cmd, &out)]
         }
         Ok(resp) => {
+            let out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
             vec![CheckResult::fail(
                 "WordPress HTTP error",
                 format!("HTTP status: {}", resp.status),
-            )]
+            ).with_cmd(&cmd, &out)]
         }
-        Err(e) => vec![CheckResult::fail(format!("WordPress not reachable on port {port}"), e)],
+        Err(e) => vec![CheckResult::fail(format!("WordPress not reachable on port {port}"), &e).with_cmd(&cmd, &e)],
     }
 }
 
@@ -29,8 +32,10 @@ pub async fn run_posts(config: &Config) -> Vec<CheckResult> {
 
     // using ?rest_route= parameter (works even without pretty permalinks)
     let url = format!("http://{}:{port}/?rest_route=/wp/v2/posts", config.target);
+    let cmd = format!("GET {url}");
     match http_helper::get(&url).await {
         Ok(resp) if resp.status < 400 => {
+            let out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
             // Parse as JSON array and count
             match serde_json::from_str::<serde_json::Value>(&resp.body) {
                 Ok(serde_json::Value::Array(arr)) => {
@@ -38,25 +43,28 @@ pub async fn run_posts(config: &Config) -> Vec<CheckResult> {
                     if count >= min_posts {
                         vec![CheckResult::pass(format!(
                             "WordPress has {count} posts (>= {min_posts})"
-                        ))]
+                        )).with_cmd(&cmd, &out)]
                     } else {
                         vec![CheckResult::fail(
                             "Not enough WordPress posts",
                             format!("Found {count}, need >= {min_posts}"),
-                        )]
+                        ).with_cmd(&cmd, &out)]
                     }
                 }
                 _ => vec![CheckResult::fail(
                     "Could not parse posts response",
                     "Expected JSON array",
-                )],
+                ).with_cmd(&cmd, &out)],
             }
         }
-        Ok(resp) => vec![CheckResult::fail(
-            "WordPress REST API error",
-            format!("HTTP status: {}", resp.status),
-        )],
-        Err(e) => vec![CheckResult::fail("WordPress REST API not reachable", e)],
+        Ok(resp) => {
+            let out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
+            vec![CheckResult::fail(
+                "WordPress REST API error",
+                format!("HTTP status: {}", resp.status),
+            ).with_cmd(&cmd, &out)]
+        }
+        Err(e) => vec![CheckResult::fail("WordPress REST API not reachable", &e).with_cmd(&cmd, &e)],
     }
 }
 
@@ -76,23 +84,29 @@ pub async fn run_login(config: &Config) -> Vec<CheckResult> {
         config.secrets.wp_user, config.secrets.wp_pass
     );
 
+    let cmd = format!("POST {url} (XML-RPC wp.getUsersBlogs as {})", config.secrets.wp_user);
     match http_helper::post(&url, "text/xml", &payload).await {
         Ok(resp) if resp.body.contains("blogid") => {
+            let out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
             vec![CheckResult::pass(format!(
                 "WordPress login as {}", config.secrets.wp_user
-            ))]
+            )).with_cmd(&cmd, &out)]
         }
         Ok(resp) if resp.body.contains("faultCode") => {
+            let out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
             vec![CheckResult::fail(
                 format!("WordPress login as {} failed", config.secrets.wp_user),
                 "Check user/password or XML-RPC availability",
-            )]
+            ).with_cmd(&cmd, &out)]
         }
-        Ok(resp) => vec![CheckResult::fail(
-            format!("WordPress login as {} failed", config.secrets.wp_user),
-            format!("HTTP {}: {}", resp.status, &resp.body[..resp.body.len().min(200)]),
-        )],
-        Err(e) => vec![CheckResult::fail("WordPress XML-RPC not reachable", e)],
+        Ok(resp) => {
+            let out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
+            vec![CheckResult::fail(
+                format!("WordPress login as {} failed", config.secrets.wp_user),
+                format!("HTTP {}: {}", resp.status, &resp.body[..resp.body.len().min(200)]),
+            ).with_cmd(&cmd, &out)]
+        }
+        Err(e) => vec![CheckResult::fail("WordPress XML-RPC not reachable", &e).with_cmd(&cmd, &e)],
     }
 }
 

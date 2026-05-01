@@ -55,35 +55,38 @@ pub async fn run(config: &Config, ssh_session: &SharedSshSession) -> Vec<CheckRe
 
     // Roundtrip via HTTPS
     let check_url = format!("https://{}/{check_filename}", config.target);
+    let http_cmd = format!("GET {check_url}");
     match http_helper::get(&check_url).await {
         Ok(resp) if resp.status >= 200 && resp.status < 400 => {
+            let http_out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
             results.push(CheckResult::pass(format!(
                 "{check_filename} reachable via HTTPS (HTTP {})",
                 resp.status
-            )));
+            )).with_cmd(&http_cmd, &http_out));
 
             if resp.body.contains(local_user.as_str()) {
                 results.push(CheckResult::pass(format!(
                     "Roundtrip OK: '{local_user}' found in page"
-                )));
+                )).with_cmd(&http_cmd, &http_out));
             } else {
                 results.push(CheckResult::fail(
                     format!("Roundtrip: '{local_user}' not found in page"),
                     "Expected your username in page content",
-                ));
+                ).with_cmd(&http_cmd, &http_out));
             }
         }
         Ok(resp) => {
+            let http_out = format!("HTTP {}\n{}", resp.status, &resp.body[..resp.body.len().min(500)]);
             results.push(CheckResult::fail(
                 format!("{check_filename} not reachable via HTTPS"),
                 format!("HTTP status: {}", resp.status),
-            ));
+            ).with_cmd(&http_cmd, &http_out));
         }
         Err(e) => {
             results.push(CheckResult::fail(
                 format!("{check_filename} not reachable via HTTPS"),
-                e,
-            ));
+                &e,
+            ).with_cmd(&http_cmd, &e));
         }
     }
 
