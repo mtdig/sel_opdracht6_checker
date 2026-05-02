@@ -113,32 +113,51 @@ openssl enc -aes-256-cbc -pbkdf2 -pass pass:'letmein!' \
 
 ## What it checks
 
-| #  | Category   | Check                                                              |
-|----|------------|--------------------|
-| 1  | Netwerk    | VM pingbaar op `TARGET`                                            |
-| 2  | SSH        | Login als trouble/shoot op poort 22                                |
-| 3  | Netwerk    | VM heeft internettoegang                                           |
-| 4  | Apache     | HTTPS bereikbaar + verwachte tekst in index.html                   |
-| 5  | SFTP       | Upload `opdracht6.html` (met jouw username) naar `/var/www/html/`  |
-| 6  | SFTP       | `opdracht6.html` bereikbaar via HTTPS                              |
-| 7  | SFTP       | Roundtrip: jouw username teruggevonden in de webpagina             |
-| 8  | MySQL      | Remote toegang als appusr op poort 3306 (appdb)                    |
-| 9  | MySQL      | Lokale toegang als admin via SSH                                   |
-| 10 | MySQL      | admin is NIET bereikbaar van buitenaf                              |
-| 11 | WordPress  | Site bereikbaar op poort 8080                                      |
-| 12 | WordPress  | Minstens 3 posts aanwezig                                          |
-| 13 | WordPress  | Login als wpuser                                                   |
-| 14 | WordPress  | Database wpdb bestaat                                             |
-| 15 | Portainer  | HTTPS bereikbaar op poort 9443                                     |
-| 16 | Vaultwarden| HTTPS bereikbaar op poort 4123                                     |
-| 17 | Minetest   | UDP poort 30000 open                                               |
-| 18 | Planka     | HTTP bereikbaar op poort 3000                                      |
-| 19 | Planka     | Login als troubleshoot@selab.hogent.be                             |
-| 20 | Docker     | Containers vaultwarden, minetest, portainer draaien                |
-| 21 | Docker     | Planka container draait                                            |
-| 22 | Docker     | Vaultwarden & Minetest: lokale bind mounts                         |
-| 23 | Docker     | Portainer: Docker volume                                           |
-| 24 | Docker     | Planka compose in ~/docker/planka/                                 |
+| #  | Category    | Check                                                                                      |
+|----|-------------|--------------------------------------------------------------------------------------------|
+| 1  | Netwerk     | VM pingbaar op `TARGET`                                                                    |
+| 2  | SSH         | Login als `trouble` op poort 22                                                            |
+| 3  | Netwerk     | VM heeft internettoegang (ping 8.8.8.8)                                                    |
+| 4  | Apache      | HTTPS bereikbaar + verwachte tekst in `index.html`                                         |
+| 5  | SFTP        | Upload `opdracht6.html` (met jouw username) naar `/var/www/html/`                          |
+| 6  | SFTP        | `opdracht6.html` bereikbaar via HTTPS                                                      |
+| 7  | SFTP        | Roundtrip: jouw username teruggevonden in de webpagina                                     |
+| 8  | MySQL       | Remote toegang als appusr op poort 3306 (appdb)                                            |
+| 9  | MySQL       | Lokale toegang als admin via SSH                                                            |
+| 10 | MySQL       | admin is NIET bereikbaar van buitenaf                                                      |
+| 11 | WordPress   | Site bereikbaar op poort 8080                                                               |
+| 12 | WordPress   | Minstens 3 posts aanwezig                                                                  |
+| 13 | WordPress   | Login als wpuser                                                                            |
+| 14 | WordPress   | Database wpdb bestaat                                                                      |
+| 15 | Portainer   | HTTPS bereikbaar op poort 9443 + login + container lijst via dynamisch endpoint            |
+| 16 | Vaultwarden | HTTPS bereikbaar op poort 4123 + login via `bw` CLI + `testsecret` wachtwoord correct     |
+| 17 | Minetest    | Container draait + server reageert op Luanti `TOSERVER_INIT` UDP packet op poort 30000    |
+| 18 | Planka      | HTTP bereikbaar op poort 3000 + login                                                      |
+| 19 | Docker      | Containers `vaultwarden`, `minetest`, `portainer` draaien                                  |
+| 20 | Docker      | `planka` container draait                                                                   |
+| 21 | Docker      | Vaultwarden & Minetest: lokale bind mounts                                                 |
+| 22 | Docker      | Portainer: Docker volume                                                                    |
+| 23 | Docker      | Gedeeld compose bestand aanwezig in `~/docker/`                                            |
+| 24 | Docker      | Planka compose bestand aanwezig in `~/docker/planka/`                                      |
+
+### Vaultwarden check details
+
+The Vaultwarden check uses the [Bitwarden CLI](https://bitwarden.com/help/cli/) (`bw`) to fully
+decrypt the vault — raw HTTP cannot access encrypted vault contents.  The Docker image bundles the
+`bw` pre-built binary (downloaded from the Bitwarden GitHub releases during `docker build`).
+
+The check:
+1. Points `bw` at the Vaultwarden instance (`bw config server`)
+2. Logs in with the configured credentials (`bw login --passwordenv`)
+3. Syncs the vault (`bw sync`)
+4. Retrieves the `testsecret` item and verifies its password equals `Sup3rS3crP@55`
+
+### Minetest check details
+
+The Minetest check sends a real Luanti/Minetest `TOSERVER_INIT` UDP packet (29 bytes) directly to
+port 30000 and verifies that the server sends back any response — proving the server is up and
+processing packets, not just that the port is open.  This correctly handles firewall DROP rules that
+would fool a simple `nc -z` probe.
 
 ## Exit code
 

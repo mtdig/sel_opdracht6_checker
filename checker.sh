@@ -665,7 +665,7 @@ check_minetest() {
     #       Luanti network protocol source code: 
     #           https://github.com/luanti-org/luanti/blob/master/src/network/networkprotocol.h
 
-    
+
     trace "minetest TOSERVER_INIT → ${TARGET}:${MINETEST_PORT} (UDP, player='trouble')"
     local response_tmp response_hex byte_count
     response_tmp=$(mktemp)
@@ -805,21 +805,21 @@ bold "====================================================="
 
 run_check check_ping
 run_check check_ssh
-# run_check check_internet
-# run_check check_apache_https
-# run_check check_sftp_upload
-# run_check check_mysql_remote
-# run_check check_mysql_local_via_ssh
-# run_check check_mysql_admin_not_remote
-# run_check check_wordpress_reachable
-# run_check check_wordpress_post
-# run_check check_wordpress_login
-# run_check check_wordpress_db
-# run_check check_portainer
-# run_check check_vaultwarden
+run_check check_internet
+run_check check_apache_https
+run_check check_sftp_upload
+run_check check_mysql_remote
+run_check check_mysql_local_via_ssh
+run_check check_mysql_admin_not_remote
+run_check check_wordpress_reachable
+run_check check_wordpress_post
+run_check check_wordpress_login
+run_check check_wordpress_db
+run_check check_portainer
+run_check check_vaultwarden
 run_check check_minetest
-# run_check check_planka
-# run_check check_docker_compose
+run_check check_planka
+run_check check_docker_compose
 
 echo ""
 bold "=== Resultaat ==="
