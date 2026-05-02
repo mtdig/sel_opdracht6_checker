@@ -421,13 +421,14 @@ check_wordpress_post() {
     if [[ "$count" -ge "$MIN_WP_POSTS" ]]; then
         pass "WordPress heeft minstens ${MIN_WP_POSTS} post(s) (${count} gevonden)"
     else
-        fail "WordPress heeft geen posts" \
+        fail "WordPress heeft geen of niet genoeg posts" \
              "Maak minstens ${MIN_WP_POSTS} post(s) aan"
     fi
 }
 
 check_wordpress_login() {
     trace "curl -sk ${WP_URL}/xmlrpc.php (wp.getUsersBlogs)"
+    trace_output "Login testen via XML-RPC endpoint met gebruiker ${WP_USER} (${WP_PASS:0:2}****)"
     local response
     response=$(curl -sk --connect-timeout 5 "${WP_URL}/xmlrpc.php" \
         -H "Content-Type: text/xml" \
@@ -577,18 +578,24 @@ check_vaultwarden() {
 
     # Sync vault
     trace "bw sync (vault ophalen)"
-    bw sync --session "$bw_session" --nointeraction &>/dev/null || true
+    if ! bw sync --session "$bw_session" --nointeraction &>/dev/null; then
+        fail "Vaultwarden sync mislukt" "bw sync gaf een fout terug"
+        bw logout --nointeraction &>/dev/null || true
+        return
+    fi
     trace_done
 
-    # Retrieve and decrypt the '${VW_TEST_SECRET}' item
-
-    trace "bw get item ${VW_TEST_SECRET}"
+    # Retrieve the item by name match (bw list items --search, then filter by exact name)
+    trace "bw list items --search ${VW_TEST_SECRET}"
     trace_output "Verwacht wachtwoord: ${VW_TEST_PASSWORD}"
-    trace_output "Verwacht gebruiker: ${VW_TEST_USER}"
-    local item_json secret_password
-    item_json=$(bw get item "${VW_TEST_SECRET}" --session "$bw_session" --nointeraction 2>/dev/null || echo "{}")
+    trace_output "Verwachte gebruiker: ${VW_TEST_USER}"
+    local item_json secret_password list_json
+    list_json=$(bw list items --search "${VW_TEST_SECRET}" --session "$bw_session" --nointeraction 2>/dev/null || echo "[]")
+    item_json=$(echo "$list_json" | jq -r --arg name "${VW_TEST_SECRET}" 'map(select(.name == $name)) | first // empty')
+    trace_output "Ruwe item JSON:\n$item_json"
     secret_password=$(echo "$item_json" | jq -r '.login.password // empty')
     secret_username=$(echo "$item_json" | jq -r '.login.username // empty')
+
     trace_done; trace_output "user=${secret_username} password=${secret_password}"
 
     bw logout --nointeraction &>/dev/null || true
