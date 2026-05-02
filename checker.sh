@@ -61,6 +61,8 @@ APACHE_URL="https://${TARGET}"
 APACHE_EXPECTED_TEXT="Als u dit kan lezen dan is de toegang tot de webpagina correct ingesteld!"
 MINETEST_PORT=30000
 TRACE_DELAY_MS="${TRACE_DELAY_MS:-0}"
+MYSQL_HOST_CMD="mariadb --skip-ssl"
+# MYSQL_HOST_CMD="mysql"
 
 PASSED=0
 FAILED=0
@@ -319,33 +321,36 @@ EOF
 check_mysql_remote() {
     section "Databankserver (MySQL)"
 
-    trace "mysql -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} -e 'SELECT 1'"
-    if mysql -h "${TARGET}" -P 3306 --skip-ssl \
+    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} -e 'SELECT 1'"
+    local mysql_err
+    if mysql_err=$(${MYSQL_HOST_CMD} -h "${TARGET}" -P 3306 --skip-ssl \
         -u "${MYSQL_REMOTE_USER}" -p"${MYSQL_REMOTE_PASS}" \
-        -e "SELECT 1;" &>/dev/null; then
-        trace_done
+        -e "SELECT 1;" 2>&1 >/dev/null); then
+        trace_done; trace_output "$mysql_err"
         pass "MySQL bereikbaar op ${TARGET}:3306 als ${MYSQL_REMOTE_USER}"
     else
-        trace_done
+        trace_done; trace_output "$mysql_err"
         fail "MySQL niet bereikbaar op ${TARGET}:3306 als ${MYSQL_REMOTE_USER}" \
              "Controleer gebruiker/wachtwoord en of remote access is ingeschakeld"
     fi
 
     # Check appdb database exists
-    trace "mysql -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} appdb -e 'SELECT 1'"
-    if mysql -h "${TARGET}" -P 3306 --skip-ssl \
+    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} appdb -e 'SELECT 1'"
+    local mysql_err2
+    if mysql_err2=$(${MYSQL_HOST_CMD} -h "${TARGET}" -P 3306 --skip-ssl \
         -u "${MYSQL_REMOTE_USER}" -p"${MYSQL_REMOTE_PASS}" \
-        appdb -e "SELECT 1;" &>/dev/null; then
-        trace_done
+        appdb -e "SELECT 1;" 2>&1 >/dev/null); then
+        trace_done; trace_output "$mysql_err2"
         pass "Database appdb is bereikbaar als ${MYSQL_REMOTE_USER}"
     else
-        trace_done
+        trace_done; trace_output "$mysql_err2"
         fail "Database appdb niet bereikbaar als ${MYSQL_REMOTE_USER}" \
              "Controleer of database appdb bestaat en gebruiker toegang heeft"
     fi
 }
 
 check_mysql_local_via_ssh() {
+    echo "testing MySQL lokaal via SSH... met gebruiker ${MYSQL_LOCAL_USER}"
     require_ssh "MySQL lokaal via SSH" || return
 
     trace "ssh ${SSH_USER}@${TARGET} mysql -u ${MYSQL_LOCAL_USER} -e 'SELECT 1'"
@@ -361,14 +366,15 @@ check_mysql_local_via_ssh() {
 }
 
 check_mysql_admin_not_remote() {
-    trace "mysql -h ${TARGET} -P 3306 -u ${MYSQL_LOCAL_USER} -e 'SELECT 1' (should fail)"
-    if mysql -h "${TARGET}" -P 3306 --skip-ssl \
+    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_LOCAL_USER} -e 'SELECT 1' (should fail)"
+    local mysql_err3
+    if mysql_err3=$(${MYSQL_HOST_CMD} -h "${TARGET}" -P 3306 --skip-ssl \
         -u "${MYSQL_LOCAL_USER}" -p"${MYSQL_LOCAL_PASS}" \
-        -e "SELECT 1;" &>/dev/null 2>&1; then
-        trace_done
+        -e "SELECT 1;" 2>&1 >/dev/null); then
+        trace_done; trace_output "$mysql_err3"
         fail "MySQL admin is bereikbaar van buitenaf (zou alleen lokaal mogen zijn)"
     else
-        trace_done
+        trace_done; trace_output "$mysql_err3"
         pass "MySQL admin is niet bereikbaar van buitenaf (correct)"
     fi
 }

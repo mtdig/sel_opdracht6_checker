@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     curl \
     jq \
-    default-mysql-client \
+    mariadb-client \
     openssh-client \
     sshpass \
     iputils-ping \
