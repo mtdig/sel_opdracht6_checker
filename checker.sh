@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================================
-# SELab Opdracht6 Checker v1.0.12
+# SELab Opdracht6 Checker v1.0.13
 # ============================================================================
 
 # Verbosity: LOGLEVEL=INFO or -v = show commands + responses
@@ -576,22 +576,22 @@ check_vaultwarden() {
     bw sync --session "$bw_session" --nointeraction &>/dev/null || true
     trace_done
 
-    # Retrieve and decrypt the 'testsecret' item
-    trace "bw get item testsecret"
+    # Retrieve and decrypt the 'test_secret' item
+    trace "bw get item test_secret"
     local item_json secret_password
-    item_json=$(bw get item testsecret --session "$bw_session" --nointeraction 2>/dev/null || echo "{}")
+    item_json=$(bw get item test_secret --session "$bw_session" --nointeraction 2>/dev/null || echo "{}")
     secret_password=$(echo "$item_json" | jq -r '.login.password // empty')
     trace_done; trace_output "testsecret password=${secret_password}"
 
     bw logout --nointeraction &>/dev/null || true
 
     if [[ -z "$secret_password" ]]; then
-        fail "Wachtwoord voor 'testsecret' niet gevonden in Vaultwarden" \
-             "Controleer of het item 'testsecret' bestaat in de kluis"
+        fail "Wachtwoord voor 'test_secret' niet gevonden in Vaultwarden" \
+             "Controleer of het item 'test_secret' bestaat in de kluis"
     elif [[ "$secret_password" == "Sup3rS3crP@55" ]]; then
-        pass "Vaultwarden 'testsecret' wachtwoord correct (Sup3rS3crP@55)"
+        pass "Vaultwarden 'test_secret' wachtwoord correct (Sup3rS3crP@55)"
     else
-        fail "Vaultwarden 'testsecret' wachtwoord incorrect" \
+        fail "Vaultwarden 'test_secret' wachtwoord incorrect" \
              "Verwacht: Sup3rS3crP@55, gevonden: ${secret_password}"
     fi
 }

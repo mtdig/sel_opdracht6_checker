@@ -1,7 +1,7 @@
 package checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import domain.Check;
 import domain.CheckContext;
 import domain.CheckResult;
@@ -15,8 +15,7 @@ import java.util.List;
 
 public class VaultwardenCheck implements Check {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final String EXPECTED_ITEM = "testsecret";
+    private static final String EXPECTED_ITEM = "test_secret";
     private static final String EXPECTED_PASS = "Sup3rS3crP@55";
 
     @Override public String getId() { return "vaultwarden"; }
@@ -71,19 +70,31 @@ public class VaultwardenCheck implements Check {
             results.add(CheckResult.pass("Vaultwarden login as " + ctx.getVaultwardenUser()));
 
             // bw sync
-            bw(dataDir, ctx.getVaultwardenPass(), "--session", session, "sync", "--nointeraction");
+            String syncResult = bw(dataDir, ctx.getVaultwardenPass(),
+                    "sync", "--session", session, "--nointeraction");
+            if (syncResult == null) {
+                results.add(CheckResult.fail("Vaultwarden sync failed", "bw sync exited non-zero"));
+                return results;
+            }
 
-            // bw get item
-            String itemJson = bw(dataDir, ctx.getVaultwardenPass(),
-                    "get", "item", EXPECTED_ITEM, "--session", session, "--nointeraction");
-            if (itemJson == null || itemJson.isBlank()) {
+            // bw list items --search (more robust than get item exact-name lookup)
+            String listJson = bw(dataDir, ctx.getVaultwardenPass(),
+                    "list", "items", "--search", EXPECTED_ITEM, "--session", session, "--nointeraction");
+            if (listJson == null || listJson.isBlank()) {
                 results.add(CheckResult.fail(
                         "Item '" + EXPECTED_ITEM + "' not found in Vaultwarden",
                         "Check that the item exists in the vault"));
                 return results;
             }
-            JsonNode item = MAPPER.readTree(itemJson);
-            String password = item.path("login").path("password").asText("");
+            com.google.gson.JsonArray items = JsonParser.parseString(listJson).getAsJsonArray();
+            if (items.isEmpty()) {
+                results.add(CheckResult.fail(
+                        "Item '" + EXPECTED_ITEM + "' not found in Vaultwarden",
+                        "Check that the item exists in the vault"));
+                return results;
+            }
+            JsonObject item = items.get(0).getAsJsonObject();
+            String password = item.getAsJsonObject("login").get("password").getAsString();
             if (EXPECTED_PASS.equals(password)) {
                 results.add(CheckResult.pass(
                         "Vaultwarden '" + EXPECTED_ITEM + "' password correct (" + EXPECTED_PASS + ")"));
@@ -117,9 +128,10 @@ public class VaultwardenCheck implements Check {
         pb.environment().put("BITWARDENCLI_APPDATA_DIR", dataDir.toString());
         pb.environment().put("BW_PASSWORD", bwPassword);
         pb.environment().put("NODE_TLS_REJECT_UNAUTHORIZED", "0");
-        pb.redirectErrorStream(true);
+        pb.redirectErrorStream(false);
         Process proc = pb.start();
         String out = new String(proc.getInputStream().readAllBytes()).trim();
+        proc.getErrorStream().transferTo(java.io.OutputStream.nullOutputStream()); // drain stderr
         int exit = proc.waitFor();
         return exit == 0 ? out : null;
     }
@@ -134,3 +146,4 @@ public class VaultwardenCheck implements Check {
         } catch (IOException ignored) {}
     }
 }
+

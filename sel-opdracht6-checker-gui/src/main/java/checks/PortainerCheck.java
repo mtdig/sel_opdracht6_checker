@@ -1,7 +1,9 @@
 package checks;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import domain.Check;
 import domain.CheckContext;
 import domain.CheckResult;
@@ -9,11 +11,10 @@ import domain.HttpRequestException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class PortainerCheck implements Check {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Override public String getId() { return "portainer"; }
     @Override public String getName() { return "Portainer reachable via HTTPS (port 9443)"; }
@@ -45,8 +46,8 @@ public class PortainerCheck implements Check {
         try {
             HttpHelper.HttpResponse loginResp = HttpHelper.post(
                     url + "/api/auth", "application/json", loginPayload);
-            JsonNode loginJson = MAPPER.readTree(loginResp.body());
-            token = loginJson.path("jwt").asText("");
+            JsonObject loginJson = JsonParser.parseString(loginResp.body()).getAsJsonObject();
+            token = loginJson.has("jwt") ? loginJson.get("jwt").getAsString() : "";
             if (token.isEmpty()) {
                 results.add(CheckResult.fail("Portainer login failed", "No JWT returned — check credentials"));
                 return results;
@@ -61,16 +62,12 @@ public class PortainerCheck implements Check {
         int endpointId;
         try {
             HttpHelper.HttpResponse epResp = HttpHelper.getWithAuth(url + "/api/endpoints", token);
-            JsonNode epJson = MAPPER.readTree(epResp.body());
-            if (!epJson.isArray() || epJson.isEmpty()) {
+            JsonArray epJson = JsonParser.parseString(epResp.body()).getAsJsonArray();
+            if (epJson.isEmpty()) {
                 results.add(CheckResult.fail("Portainer endpoint not found", "No endpoints available"));
                 return results;
             }
-            endpointId = epJson.get(0).path("Id").asInt(-1);
-            if (endpointId < 0) {
-                results.add(CheckResult.fail("Portainer endpoint not found", "Could not read endpoint Id"));
-                return results;
-            }
+            endpointId = epJson.get(0).getAsJsonObject().get("Id").getAsInt();
         } catch (Exception e) {
             results.add(CheckResult.fail("Portainer endpoint lookup failed", e.getMessage()));
             return results;
@@ -80,14 +77,18 @@ public class PortainerCheck implements Check {
         try {
             HttpHelper.HttpResponse cResp = HttpHelper.getWithAuth(
                     url + "/api/endpoints/" + endpointId + "/docker/containers/json?all=true", token);
-            JsonNode containers = MAPPER.readTree(cResp.body());
-            int count = containers.isArray() ? containers.size() : 0;
+            JsonArray containers = JsonParser.parseString(cResp.body()).getAsJsonArray();
+            int count = containers.size();
             if (count > 0) {
                 String names = StreamSupport.stream(containers.spliterator(), false)
-                        .map(c -> c.path("Names").isArray() && c.path("Names").size() > 0
-                                ? c.path("Names").get(0).asText("").replaceFirst("^/", "")
-                                : "?")
-                        .collect(java.util.stream.Collectors.joining(", "));
+                        .map(c -> {
+                            JsonArray nameArr = c.getAsJsonObject().getAsJsonArray("Names");
+                            if (nameArr != null && nameArr.size() > 0) {
+                                return nameArr.get(0).getAsString().replaceFirst("^/", "");
+                            }
+                            return "?";
+                        })
+                        .collect(Collectors.joining(", "));
                 results.add(CheckResult.pass("Portainer sees " + count + " container(s): " + names));
             } else {
                 results.add(CheckResult.fail("Portainer sees no containers",

@@ -41,7 +41,7 @@
         devShells.default = pkgs.mkShell {
           name = "sel-checker-gui";
 
-          buildInputs = [ jdk pkgs.maven ] ++ javafxLibs;
+          buildInputs = [ jdk pkgs.maven pkgs.bitwarden-cli ] ++ javafxLibs;
 
           shellHook = ''
             export JAVA_HOME="${jdk}"
