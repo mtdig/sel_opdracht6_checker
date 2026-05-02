@@ -321,11 +321,11 @@ EOF
 check_mysql_remote() {
     section "Databankserver (MySQL)"
 
-    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} -e 'SELECT 1'"
+    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} -e 'SELECT 1 AS test_col'"
     local mysql_err
     if mysql_err=$(${MYSQL_HOST_CMD} -h "${TARGET}" -P 3306 --skip-ssl \
         -u "${MYSQL_REMOTE_USER}" -p"${MYSQL_REMOTE_PASS}" \
-        -e "SELECT 1;" 2>&1 >/dev/null); then
+        -e "SELECT 1 AS test_col;" 2>&1); then
         trace_done; trace_output "$mysql_err"
         pass "MySQL bereikbaar op ${TARGET}:3306 als ${MYSQL_REMOTE_USER}"
     else
@@ -335,11 +335,11 @@ check_mysql_remote() {
     fi
 
     # Check appdb database exists
-    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} appdb -e 'SELECT 1'"
+    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_REMOTE_USER} appdb -e 'SELECT 1 AS test_col'"
     local mysql_err2
     if mysql_err2=$(${MYSQL_HOST_CMD} -h "${TARGET}" -P 3306 --skip-ssl \
         -u "${MYSQL_REMOTE_USER}" -p"${MYSQL_REMOTE_PASS}" \
-        appdb -e "SELECT 1;" 2>&1 >/dev/null); then
+        appdb -e "SELECT 1 AS test_col;" 2>&1); then
         trace_done; trace_output "$mysql_err2"
         pass "Database appdb is bereikbaar als ${MYSQL_REMOTE_USER}"
     else
@@ -353,9 +353,9 @@ check_mysql_local_via_ssh() {
     echo "testing MySQL lokaal via SSH... met gebruiker ${MYSQL_LOCAL_USER}"
     require_ssh "MySQL lokaal via SSH" || return
 
-    trace "ssh ${SSH_USER}@${TARGET} mysql -u ${MYSQL_LOCAL_USER} -e 'SELECT 1'"
+    trace "ssh ${SSH_USER}@${TARGET} mysql -u ${MYSQL_LOCAL_USER} -e 'SELECT 1 AS test_col'"
     local result
-    result=$(ssh_cmd "mysql -u ${MYSQL_LOCAL_USER} -p'${MYSQL_LOCAL_PASS}' -e 'SELECT 1;' 2>/dev/null" || echo "error")
+    result=$(ssh_cmd "mysql -u ${MYSQL_LOCAL_USER} -p'${MYSQL_LOCAL_PASS}' -e 'SELECT 1 AS test_col;' 2>/dev/null" || echo "error")
     trace_done; trace_output "$result"
     if [[ "$result" == *"1"* ]]; then
         pass "MySQL lokaal bereikbaar via SSH als ${MYSQL_LOCAL_USER}"
@@ -366,11 +366,11 @@ check_mysql_local_via_ssh() {
 }
 
 check_mysql_admin_not_remote() {
-    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_LOCAL_USER} -e 'SELECT 1' (should fail)"
+    trace "${MYSQL_HOST_CMD} -h ${TARGET} -P 3306 -u ${MYSQL_LOCAL_USER} -e 'SELECT 1 AS test_col' (should fail)"
     local mysql_err3
     if mysql_err3=$(${MYSQL_HOST_CMD} -h "${TARGET}" -P 3306 --skip-ssl \
         -u "${MYSQL_LOCAL_USER}" -p"${MYSQL_LOCAL_PASS}" \
-        -e "SELECT 1;" 2>&1 >/dev/null); then
+        -e "SELECT 1 AS test_col;" 2>&1); then
         trace_done; trace_output "$mysql_err3"
         fail "MySQL admin is bereikbaar van buitenaf (zou alleen lokaal mogen zijn)"
     else
@@ -383,9 +383,11 @@ check_wordpress_reachable() {
     section "WordPress"
 
     trace "curl -sk ${WP_URL}"
-    local http_code
-    http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${WP_URL}" 2>/dev/null || echo "000")
-    trace_done; trace_output "HTTP ${http_code}"
+    local http_code body
+    body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${WP_URL}" 2>/dev/null || echo -e "\n000")
+    http_code=$(echo "$body" | tail -1)
+    body=$(echo "$body" | sed '$d')
+    trace_done; trace_output "HTTP ${http_code}"$'\n'"${body}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "WordPress bereikbaar op ${WP_URL} (HTTP ${http_code})"
     else
@@ -436,9 +438,9 @@ check_wordpress_login() {
 check_wordpress_db() {
     require_ssh "WordPress database check" || return
 
-    trace "ssh ${SSH_USER}@${TARGET} mysql -u ${WP_USER} wpdb -e 'SELECT 1'"
+    trace "ssh ${SSH_USER}@${TARGET} mysql -u ${WP_USER} wpdb -e 'SELECT 1 AS test_col'"
     local result
-    result=$(ssh_cmd "mysql -u ${WP_USER} -p'${WP_PASS}' wpdb -e 'SELECT 1;' 2>/dev/null" || echo "error")
+    result=$(ssh_cmd "mysql -u ${WP_USER} -p'${WP_PASS}' wpdb -e 'SELECT 1 AS test_col;' 2>/dev/null" || echo "error")
     trace_done; trace_output "$result"
     if [[ "$result" == *"1"* ]]; then
         pass "WordPress database wpdb bestaat en is bereikbaar via SSH"
@@ -452,9 +454,11 @@ check_portainer() {
     section "Docker - Portainer"
 
     trace "curl -sk ${PORTAINER_URL}"
-    local http_code
-    http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${PORTAINER_URL}" 2>/dev/null || echo "000")
-    trace_done; trace_output "HTTP ${http_code}"
+    local http_code body
+    body=$(curl -sk -o /dev/null --connect-timeout 5 -w '\n%{http_code}' "${PORTAINER_URL}" 2>/dev/null || echo -e "\n000")
+    http_code=$(echo "$body" | tail -1)
+    body=$(echo "$body" | sed '$d')
+    trace_done; trace_output "HTTP ${http_code}"$'\n'"${body}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "Portainer bereikbaar via HTTPS op ${PORTAINER_URL} (HTTP ${http_code})"
     else
@@ -467,9 +471,11 @@ check_vaultwarden() {
     section "Docker - Vaultwarden"
 
     trace "curl -sk ${VAULTWARDEN_URL}"
-    local http_code
-    http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${VAULTWARDEN_URL}" 2>/dev/null || echo "000")
-    trace_done; trace_output "HTTP ${http_code}"
+    local http_code body
+    body=$(curl -sk -o /dev/null --connect-timeout 5 -w '\n%{http_code}' "${VAULTWARDEN_URL}" 2>/dev/null || echo -e "\n000")
+    http_code=$(echo "$body" | tail -1)
+    body=$(echo "$body" | sed '$d')
+    trace_done; trace_output "HTTP ${http_code}"$'\n'"${body}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "Vaultwarden bereikbaar via HTTPS op ${VAULTWARDEN_URL} (HTTP ${http_code})"
     else
@@ -501,9 +507,11 @@ check_planka() {
     section "Docker - Planka"
 
     trace "curl -sk ${PLANKA_URL}"
-    local http_code
-    http_code=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 5 "${PLANKA_URL}" 2>/dev/null || echo "000")
-    trace_done; trace_output "HTTP ${http_code}"
+    local http_code body
+    body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${PLANKA_URL}" 2>/dev/null || echo -e "\n000")
+    http_code=$(echo "$body" | tail -1)
+    body=$(echo "$body" | sed '$d')
+    trace_done; trace_output "HTTP ${http_code}"$'\n'"${body}"
     if [[ "$http_code" -ge 200 && "$http_code" -lt 400 ]]; then
         pass "Planka bereikbaar op ${PLANKA_URL} (HTTP ${http_code})"
     else
