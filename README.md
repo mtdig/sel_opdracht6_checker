@@ -9,13 +9,13 @@ Automated checker for the SELab opdracht6 assignment.  Available as:
 ### Option A: Bash
 
 ```bash
-DECRYPT_PASS="letmein!" LOGLEVEL=INFO ./checker.sh
+DECRYPT_PASS="<the_pass>" LOGLEVEL=INFO ./checker.sh
 ```
 
 ### Optional: different target IP
 
 ```bash
-DECRYPT_PASS="letmein!" LOCAL_USER=$USER TARGET=192.168.128.20 ./checker.sh
+DECRYPT_PASS="<the_pass>" LOCAL_USER=$USER TARGET=192.168.128.20 ./checker.sh
 ```
 
 ## Option B: Docker container
@@ -69,7 +69,7 @@ To re-encrypt the secrets after changing them:
 
 ```bash
 # Edit secrets.env (not committed to git)
-openssl enc -aes-256-cbc -pbkdf2 -pass pass:'letmein!' \
+openssl enc -aes-256-cbc -pbkdf2 -pass pass:'<the_pass>' \
     -in secrets.env -out secrets.env.enc
 ```
 
