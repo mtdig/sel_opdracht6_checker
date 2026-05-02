@@ -2,50 +2,23 @@
 
 Automated checker for the SELab opdracht6 assignment.  Available as:
 
-- **Portable binary** (recommended) — single static executable, no dependencies, works on Linux / macOS / Windows × amd64 / arm64
-- **Docker container** — for Linux/macOS hosts that already have Docker
+- **bash script**
+- **Docker container** — dockerized the bash script for Linux/macOS/Windows hosts that already have Docker
 
-> DISCLAIMER: The screen recordings were taken from a macbook m1 air with an x86_64 VM.  Using a native aarch64 vm results in sub-second runs.
->
 
-## Option A: Portable binary - GUI
-
-No dependencies required.  Just put in the ip, local user and decryption passphrase and run.
-
-Download latest release for [Windows (x86_64)](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-windows-amd64.exe), [macos (arm64)](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-macos-arm64) and linux ([x86_64](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-linux-amd64), [aarch64](https://github.com/mtdig/sel_opdracht6_checker/releases/download/v0.1.10/sel-checker-linux-arm64))
-
-<div style="text-align: center;">
-  <img src="img/sel-checker-gui-rust.webp" style="width: 800px;"></img>
-</div>
-
-## Option B: Portable binary (recommended) CLI
-
-Download the zip for your platform from the
-[Releases](https://github.com/mtdig/sel-opdracht6-checker/releases) page.
-Unzip — you get the binary + `secrets.env.enc`.  Keep them in the same folder.
-
-### Linux / macOS
+### Option A: Bash
 
 ```bash
-chmod +x sel-opdracht6-checker-*
-DECRYPT_PASS="letmein!" LOCAL_USER=$USER ./sel-opdracht6-checker-linux-amd64
-```
-
-### Windows (PowerShell)
-
-```powershell
-$env:DECRYPT_PASS="letmein!"
-$env:LOCAL_USER=$env:USERNAME
-.\sel-opdracht6-checker-windows-amd64.exe
+DECRYPT_PASS="letmein!" LOGLEVEL=INFO ./checker.sh
 ```
 
 ### Optional: different target IP
 
 ```bash
-DECRYPT_PASS="letmein!" LOCAL_USER=$USER TARGET=192.168.128.20 ./sel-opdracht6-checker-linux-amd64
+DECRYPT_PASS="letmein!" LOCAL_USER=$USER TARGET=192.168.128.20 ./checker.sh
 ```
 
-## Option C: Docker container
+## Option B: Docker container
 
 Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs):
 
@@ -78,18 +51,8 @@ docker run --rm \
 | `LOCAL_USER`     | current OS user        | Your host username (use `$USER` / `$env:USERNAME`)           |
 | `TRACE_DELAY_MS` | `0`                    | Pause (ms) before clearing trace lines (for debugging)       |
 | `SECRETS_FILE`   | auto-detect            | Override path to `secrets.env.enc`                           |
+| `LOGLEVEL`       | `ERROR`                | | 
 
-
-## Option Z: JavaFX
-
-From the sel-opdracht6-checker-gui directory, run:
-```bash
-$ mvn javafx:run
-```
-
-<div style="text-align: center;">
-  <img src="img/sel-checker-gui-java.webp" style="width: 800px;"></img>
-</div>
 
 
 ### Secrets & encryption
@@ -162,3 +125,6 @@ would fool a simple `nc -z` probe.
 ## Exit code
 
 The exit code equals the number of failed checks (0 = all passed).
+
+
+_there are also a few other versions available_
