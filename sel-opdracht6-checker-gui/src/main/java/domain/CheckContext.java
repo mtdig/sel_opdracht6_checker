@@ -72,6 +72,13 @@ public class CheckContext {
         return getSecret("WP_PASS");
     }
 
+    public String getPortainerUser() { return getSecret("PORTAINER_USER"); }
+    public String getPortainerPass() { return getSecret("PORTAINER_PASS"); }
+    public String getVaultwardenUser() { return getSecret("VAULTWARDEN_USER"); }
+    public String getVaultwardenPass() { return getSecret("VAULTWARDEN_PASS"); }
+    public String getPlankaUser() { return getSecret("PLANKA_USER"); }
+    public String getPlankaPass() { return getSecret("PLANKA_PASS"); }
+
     public String getApacheUrl() {
         return "https://" + target;
     }

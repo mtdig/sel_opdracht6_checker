@@ -28,11 +28,12 @@ public class PlankaCheck implements Check {
             results.add(CheckResult.pass("Planka reachable (HTTP " + resp.statusCode() + ")"));
 
             // Login
-            String payload = "{\"emailOrUsername\":\"troubleshoot@selab.hogent.be\",\"password\":\"shoot\"}";
+            String plankaUser = ctx.getPlankaUser();
+            String payload = "{\"emailOrUsername\":\"" + plankaUser + "\",\"password\":\"" + ctx.getPlankaPass() + "\"}";
             HttpHelper.HttpResponse loginResp = HttpHelper.post(
                     ctx.getPlankaUrl() + "/api/access-tokens", "application/json", payload);
             if (loginResp.body().contains("\"item\"")) {
-                results.add(CheckResult.pass("Planka login as troubleshoot@selab.hogent.be"));
+                results.add(CheckResult.pass("Planka login as " + plankaUser));
             } else {
                 results.add(CheckResult.fail("Planka login failed", "Check user/password"));
             }

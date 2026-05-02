@@ -86,6 +86,44 @@ public final class HttpHelper {
         }
     }
 
+    public static HttpResponse getWithAuth(String url, String bearerToken) {
+        try {
+            HttpURLConnection conn = openConnection(url);
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(10_000);
+            conn.setReadTimeout(10_000);
+            conn.setRequestProperty("Authorization", "Bearer " + bearerToken);
+            conn.setInstanceFollowRedirects(true);
+            int code = conn.getResponseCode();
+            String body = readBody(conn);
+            conn.disconnect();
+            return new HttpResponse(code, body);
+        } catch (Exception e) {
+            throw new HttpRequestException("HTTP GET failed for " + url + ": " + e.getMessage(), e);
+        }
+    }
+
+    public static HttpResponse postWithAuth(String url, String contentType, String payload, String bearerToken) {
+        try {
+            HttpURLConnection conn = openConnection(url);
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(10_000);
+            conn.setReadTimeout(10_000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", contentType);
+            if (bearerToken != null && !bearerToken.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + bearerToken);
+            }
+            conn.getOutputStream().write(payload.getBytes(StandardCharsets.UTF_8));
+            int code = conn.getResponseCode();
+            String body = readBody(conn);
+            conn.disconnect();
+            return new HttpResponse(code, body);
+        } catch (Exception e) {
+            throw new HttpRequestException("HTTP POST failed for " + url + ": " + e.getMessage(), e);
+        }
+    }
+
     private static HttpURLConnection openConnection(String url) throws java.io.IOException {
         HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
         if (conn instanceof HttpsURLConnection httpsConn) {

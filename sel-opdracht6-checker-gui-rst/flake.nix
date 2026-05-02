@@ -70,6 +70,7 @@
           cmake       # needed by some -sys crates (ring, etc.)
           rustToolchain
           cargo
+          bitwarden-cli  # bw CLI — needed by the Vaultwarden check at runtime
         ];
       in
       {

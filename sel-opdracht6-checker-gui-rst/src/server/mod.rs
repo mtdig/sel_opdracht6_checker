@@ -558,21 +558,54 @@ async fn handle_api_run_single(
         };
 
         // Collect all check ids that belong to this section
-        let check_ids: Vec<CheckId> = all_checks()
-            .into_iter()
+        let all_defs = all_checks();
+        let check_ids: Vec<CheckId> = all_defs.iter()
             .filter(|d| d.section == sec)
             .map(|d| d.id)
             .collect();
 
-        // Spawn each check
+        let needs_ssh = all_defs.iter()
+            .any(|d| check_ids.contains(&d.id) && d.depends_on_ssh);
+
+        // If the section needs SSH, always re-establish the SSH session.
+        // Reusing a potentially stale session from a previous run causes
+        // "Channel send error" failures because the underlying connection
+        // may have been dropped while the Arc still holds the handle.
+        if needs_ssh {
+            // Clear the stale session so run_single will re-establish it
+            *st.ssh_session.lock().await = None;
+
+            {
+                let mut guard = st.states.lock().unwrap();
+                if let Some(s) = guard.iter_mut().find(|s| s.def.id == CheckId::Ssh) {
+                    s.status = CheckStatus::Running;
+                    s.results.clear();
+                    s.duration = std::time::Duration::ZERO;
+                }
+            }
+            let handle = tokio::runtime::Handle::current();
+            checks::run_single(CheckId::Ssh, config.clone(), st.states.clone(),
+                               st.ssh_session.clone(), handle.clone());
+            // wait for SSH to finish before spawning section checks
+            for _ in 0..60 {
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                let done = st.states.lock().unwrap().iter()
+                    .find(|s| s.def.id == CheckId::Ssh)
+                    .map(|s| s.status != CheckStatus::Running)
+                    .unwrap_or(true);
+                if done { break; }
+            }
+        }
+
+        // Spawn each check in the section (SSH session is now available or failed)
         let handle = tokio::runtime::Handle::current();
         for id in &check_ids {
             checks::run_single(*id, config.clone(), st.states.clone(),
                                st.ssh_session.clone(), handle.clone());
         }
 
-        // Wait until all checks in the section are no longer Running
-        'wait: for _ in 0..40 {
+        // Wait until all checks in the section are no longer Running (up to 60s)
+        'wait: for _ in 0..240 {
             tokio::time::sleep(std::time::Duration::from_millis(250)).await;
             let guard = st.states.lock().unwrap();
             let all_done = check_ids.iter().all(|id| {

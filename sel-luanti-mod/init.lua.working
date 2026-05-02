@@ -1,4 +1,4 @@
--- selab_dashboard — Luanti/Minetest Infrastructure Dashboard
+-- selab_dashboard — Luanti/Minetest opdracht6 Dashboard
 -- Wall layout: sections = columns (X axis), checks stacked vertically (Y axis)
 -- Player stands south of wall looking north.
 -- Green = pass, Red = fail, Yellow = skip, Grey = unknown
@@ -174,15 +174,11 @@ local function build_dashboard(data)
     local n_sec   = #data.sections
     local max_chk = 0
     for _, s in ipairs(data.sections) do
-        local total = 0
-        for _, c in ipairs(s.checks) do
-            total = total + math.max(1, #(c.results or {})) + 1  -- results + gap
-        end
-        if total > max_chk then max_chk = total end
+        if #s.checks > max_chk then max_chk = #s.checks end
     end
 
     local wall_w = n_sec * SEC_STRIDE + 2
-    local wall_h = max_chk + 4
+    local wall_h = max_chk * CHECK_HEIGHT + 4
 
     -- Clear area
     for dz = -VIEW_DIST - 1, 3 do
@@ -228,7 +224,7 @@ local function build_dashboard(data)
     -- Sections
     for s_idx, section in ipairs(data.sections) do
         local x  = (s_idx - 1) * SEC_STRIDE
-        local hy = o.y + max_chk + 1
+        local hy = o.y + max_chk * CHECK_HEIGHT + 1
 
         -- Section header meselamp
         local hpos = {x=o.x+x, y=hy, z=o.z}
@@ -244,51 +240,45 @@ local function build_dashboard(data)
         place_lever({x=o.x+x+1, y=hy+1, z=o.z-1},
             RUN_BASE.."/"..section.id, "Run section: "..section.name)
 
-        -- Checks: one block per result stacked vertically
-        local y_off = 0
+        -- Checks
         for c_idx, check in ipairs(section.checks) do
-            local results = check.results or {}
-            if #results == 0 then results = {{status=check.status, message=check.name, command="", output=""}} end
+            local y   = o.y + (c_idx - 1) * CHECK_HEIGHT
+            local pos = {x=o.x+x, y=y, z=o.z}
 
-            for r_idx, r in ipairs(results) do
-                local y   = o.y + y_off
-                local pos = {x=o.x+x, y=y, z=o.z}
+            minetest.set_node(pos,
+                {name=status_node(check.status)})
+            minetest.set_node({x=o.x+x, y=y+1, z=o.z},
+                {name=status_node(check.status)})
 
-                minetest.set_node(pos, {name=status_node(r.status)})
-
-                local info = string.format("[%s] %s\n%s port %s  %dms\n\n%s",
-                    check.status:upper(), check.name,
-                    check.protocol or "?", check.port or "?",
-                    check.duration_ms or 0,
-                    r.message or "")
+            local info = string.format("[%s] %s\n%s port %s  %dms",
+                check.status:upper(), check.name,
+                check.protocol or "?", check.port or "?",
+                check.duration_ms or 0)
+            for _, r in ipairs(check.results or {}) do
+                info = info .. "\n\n[" .. r.status:upper() .. "] " .. (r.message or "")
                 if r.command and r.command ~= "" then
+                    -- Show only the last/most relevant line of the command
                     local cmd = r.command:match("[^\n]+$") or r.command
-                    info = info .. "\n$ " .. cmd:sub(1, 100)
+                    info = info .. "\n$ " .. cmd:sub(1, 80)
                 end
                 if r.output and r.output ~= "" then
+                    -- Show only last 2 lines of output
                     local lines = {}
                     for l in r.output:gmatch("[^\n]+") do lines[#lines+1] = l end
-                    local out = table.concat(lines, " | ", math.max(1, #lines-1))
-                    info = info .. "\n> " .. out:sub(1, 100)
+                    local out = table.concat(lines, " | ", math.max(1,#lines-1))
+                    info = info .. "\n> " .. out:sub(1, 80)
                 end
-                set_info(pos, info:sub(1, 450))
-
-                -- Sign with check name on first result only
-                if r_idx == 1 then
-                    place_sign({x=o.x+x, y=y, z=o.z-1}, trunc(check.name, 14))
-                    place_lever({x=o.x+x+1, y=y, z=o.z-1},
-                        RUN_BASE.."/"..check.id, "Run: "..check.name)
-                end
-
-                local key = section.id.."."..check.id.."."..r_idx
-                dash.positions[key] = {
-                    pos    = pos,
-                    status = r.status,
-                }
-                y_off = y_off + 1
             end
-            -- Gap between checks
-            y_off = y_off + 1
+            set_info(pos, info:sub(1, 500))
+
+            -- Sign on wall face (z-1) and lever embedded in wall (z=0)
+            place_sign({x=o.x+x, y=y, z=o.z-1},
+                trunc(check.name, 14))
+            place_lever({x=o.x+x+1, y=y+1, z=o.z-1},
+                RUN_BASE.."/"..check.id, "Run: "..check.name)
+
+            dash.positions[section.id.."."..check.id] =
+                {x=o.x+x, y=y, z=o.z}
         end
     end
 
@@ -302,52 +292,38 @@ local function update_dashboard(data)
     if not dash.origin then return end
     for _, section in ipairs(data.sections) do
         for _, check in ipairs(section.checks) do
-            local results = check.results or {}
-            if #results == 0 then results = {{status=check.status, message=check.name, command="", output=""}} end
-
-            -- If check failed, mark ALL its tracked result blocks red first
-            if check.status == "fail" then
-                local r_idx = 1
-                while true do
-                    local entry = dash.positions[section.id.."."..check.id.."."..r_idx]
-                    if not entry then break end
-                    minetest.set_node(entry.pos, {name="wool:red"})
-                    r_idx = r_idx + 1
+            local key = section.id.."."..check.id
+            local pos = dash.positions[key]
+            if pos then
+                local new = status_node(check.status)
+                if minetest.get_node(pos).name ~= new then
+                    minetest.set_node(pos, {name=new})
+                    minetest.set_node({x=pos.x,y=pos.y+1,z=pos.z},{name=new})
+                    burst(pos, check.status=="pass")
+                    local c = check.status=="pass"
+                        and "\27(c@#44FF44)" or "\27(c@#FF4444)"
+                    minetest.chat_send_all(string.format(
+                        "%s[SELab] %s → %s\27(c@#FFFFFF)",
+                        c, check.name, check.status:upper()))
                 end
-            end
-
-            -- Then update each result block with actual data
-            for r_idx, r in ipairs(results) do
-                local key   = section.id.."."..check.id.."."..r_idx
-                local entry = dash.positions[key]
-                if entry then
-                    local pos = entry.pos
-                    local new = status_node(r.status)
-                    if minetest.get_node(pos).name ~= new then
-                        minetest.set_node(pos, {name=new})
-                        burst(pos, r.status=="pass")
-                        local c = r.status=="pass"
-                            and "\27(c@#44FF44)" or "\27(c@#FF4444)"
-                        minetest.chat_send_all(string.format(
-                            "%s[SELab] %s / %s → %s\27(c@#FFFFFF)",
-                            c, check.name, r.message or "", r.status:upper()))
-                    end
-                    local info = string.format("[%s] %s\n%s port %s %dms\n\n%s",
-                        check.status:upper(), check.name,
-                        check.protocol or "?", check.port or "?",
-                        check.duration_ms or 0, r.message or "")
+                local info = string.format("[%s] %s\n%s port %s %dms",
+                    check.status:upper(), check.name,
+                    check.protocol or "?", check.port or "?",
+                    check.duration_ms or 0)
+                for _, r in ipairs(check.results or {}) do
+                    info = info .. "\n\n[" .. r.status:upper() .. "] " .. (r.message or "")
                     if r.command and r.command ~= "" then
                         local cmd = r.command:match("[^\n]+$") or r.command
-                        info = info .. "\n$ " .. cmd:sub(1, 100)
+                        info = info .. "\n$ " .. cmd:sub(1, 80)
                     end
                     if r.output and r.output ~= "" then
                         local lines = {}
                         for l in r.output:gmatch("[^\n]+") do lines[#lines+1] = l end
                         local out = table.concat(lines, " | ", math.max(1,#lines-1))
-                        info = info .. "\n> " .. out:sub(1, 100)
+                        info = info .. "\n> " .. out:sub(1, 80)
                     end
-                    set_info(pos, info:sub(1, 450))
                 end
+                set_info(pos, info:sub(1, 500))
             end
         end
     end

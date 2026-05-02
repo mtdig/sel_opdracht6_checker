@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================================
-# SELab Opdracht6 Checker
+# SELab Opdracht6 Checker v1.0.12
 # ============================================================================
 
 # Verbosity: LOGLEVEL=INFO or -v = show commands + responses
