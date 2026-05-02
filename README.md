@@ -11,6 +11,7 @@ Automated checker for the SELab opdracht6 assignment.  Available as:
 ```bash
 DECRYPT_PASS="<the_pass>" LOGLEVEL=INFO ./checker.sh
 ```
+For a complete list of options, see [environment variables](#environment-variables)
 
 ### Optional: different target IP
 
@@ -20,12 +21,17 @@ DECRYPT_PASS="<the_pass>" LOCAL_USER=$USER TARGET=192.168.128.20 ./checker.sh
 
 ## Option B: Docker container
 
-Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs):
+Run the checker from your host machine (where VirtualBox / UTM / QEMU/KVM runs), or from within the opdracht6 VM, why not:
 
 ```bash
 docker run --rm \
   -e LOCAL_USER=$USER \
   -e DECRYPT_PASS="<pass>" \
+  -e LOGLEVEL=INFO \
+  -e MIN_WP_POSTS=3 \
+  -e VW_TEST_SECRET=test_secret \
+  -e VW_TEST_USER=testuser \
+  -e VW_TEST_PASSWORD='Sup3rS3crP@55' \
   mtdig/sel-opdracht6-checker
 ```
 
@@ -36,6 +42,11 @@ docker run --rm \
   -e LOCAL_USER=$(whoami) \
   -e DECRYPT_PASS="<pass>" \
   -e TARGET=192.168.128.20 \
+  -e LOGLEVEL=INFO \
+  -e MIN_WP_POSTS=3 \
+  -e VW_TEST_SECRET=test_secret \
+  -e VW_TEST_USER=testuser \
+  -e VW_TEST_PASSWORD='Sup3rS3crP@55' \
   mtdig/sel-opdracht6-checker
 ```
 
@@ -52,7 +63,10 @@ docker run --rm \
 | `TRACE_DELAY_MS` | `0`                    | Pause (ms) before clearing trace lines (for debugging)       |
 | `SECRETS_FILE`   | auto-detect            | Override path to `secrets.env.enc`                           |
 | `LOGLEVEL`       | `ERROR`                | | 
-
+| `MIN_WP_POSTS`   | 3                      | Minimal amount of posts.  Default is 2, unless that's a "problem |
+| `VW_TEST_SECRET` | test_secret            | Name of a test secret in Vaultwarden|
+| `VW_TEST_USER`   | testuser               | Vaultwarden test user id for `VW_TEST_SECRET`|
+| `VW_TEST_PASSWORD` | `Sup3rS3crP@55`      | Vaultwarden Password for test user id `VW_TEST_USER` for secret name `VW_TEST_SECRET` |
 
 
 ### Secrets & encryption
