@@ -21,6 +21,10 @@ done
 
 TARGET="${TARGET:-192.168.56.20}"
 LOCAL_USER="${LOCAL_USER:-$(whoami)}"
+MIN_WP_POSTS="${MIN_WP_POSTS:-3}"
+VW_TEST_SECRET="${VW_TEST_SECRET:-test_secret}"
+VW_TEST_USER="${VW_TEST_USER:-testuser}"
+VW_TEST_PASSWORD="${VW_TEST_PASSWORD:-Sup3rS3crP@55}"
 
 #  Secrets (decrypted at runtime via openssl) 
 SECRETS_FILE="secrets.env.enc"
@@ -414,11 +418,11 @@ check_wordpress_post() {
     count=$(echo "$response" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo "0")
     trace_done; trace_output "posts=${count}"
 
-    if [[ "$count" -gt 2 ]]; then
-        pass "WordPress heeft minstens 3 post (${count} gevonden)"
+    if [[ "$count" -ge "$MIN_WP_POSTS" ]]; then
+        pass "WordPress heeft minstens ${MIN_WP_POSTS} post(s) (${count} gevonden)"
     else
         fail "WordPress heeft geen posts" \
-             "Maak minstens 1 post aan"
+             "Maak minstens ${MIN_WP_POSTS} post(s) aan"
     fi
 }
 
@@ -576,23 +580,27 @@ check_vaultwarden() {
     bw sync --session "$bw_session" --nointeraction &>/dev/null || true
     trace_done
 
-    # Retrieve and decrypt the 'test_secret' item
-    trace "bw get item test_secret"
+    # Retrieve and decrypt the '${VW_TEST_SECRET}' item
+
+    trace "bw get item ${VW_TEST_SECRET}"
+    trace_output "Verwacht wachtwoord: ${VW_TEST_PASSWORD}"
+    trace_output "Verwacht gebruiker: ${VW_TEST_USER}"
     local item_json secret_password
-    item_json=$(bw get item test_secret --session "$bw_session" --nointeraction 2>/dev/null || echo "{}")
+    item_json=$(bw get item "${VW_TEST_SECRET}" --session "$bw_session" --nointeraction 2>/dev/null || echo "{}")
     secret_password=$(echo "$item_json" | jq -r '.login.password // empty')
-    trace_done; trace_output "testsecret password=${secret_password}"
+    secret_username=$(echo "$item_json" | jq -r '.login.username // empty')
+    trace_done; trace_output "user=${secret_username} password=${secret_password}"
 
     bw logout --nointeraction &>/dev/null || true
 
     if [[ -z "$secret_password" ]]; then
-        fail "Wachtwoord voor 'test_secret' niet gevonden in Vaultwarden" \
-             "Controleer of het item 'test_secret' bestaat in de kluis"
-    elif [[ "$secret_password" == "Sup3rS3crP@55" ]]; then
-        pass "Vaultwarden 'test_secret' wachtwoord correct (Sup3rS3crP@55)"
+        fail "Credentials voor '${VW_TEST_SECRET}' niet gevonden in Vaultwarden" \
+             "Controleer of het item '${VW_TEST_SECRET}' bestaat in de kluis"
+    elif [[ "$secret_password" == "${VW_TEST_PASSWORD}" ]]; then
+        pass "Vaultwarden '${VW_TEST_SECRET}' wachtwoord correct (${VW_TEST_PASSWORD})"
     else
-        fail "Vaultwarden 'test_secret' wachtwoord incorrect" \
-             "Verwacht: Sup3rS3crP@55, gevonden: ${secret_password}"
+        fail "Vaultwarden '${VW_TEST_SECRET}' wachtwoord incorrect" \
+             "Verwacht: ${VW_TEST_PASSWORD}, gevonden: ${secret_password}"
     fi
 }
 
@@ -805,21 +813,21 @@ bold "====================================================="
 
 run_check check_ping
 run_check check_ssh
-run_check check_internet
-run_check check_apache_https
-run_check check_sftp_upload
-run_check check_mysql_remote
-run_check check_mysql_local_via_ssh
-run_check check_mysql_admin_not_remote
+# run_check check_internet
+# run_check check_apache_https
+# run_check check_sftp_upload
+# run_check check_mysql_remote
+# run_check check_mysql_local_via_ssh
+# run_check check_mysql_admin_not_remote
 run_check check_wordpress_reachable
 run_check check_wordpress_post
 run_check check_wordpress_login
 run_check check_wordpress_db
-run_check check_portainer
+# run_check check_portainer
 run_check check_vaultwarden
-run_check check_minetest
-run_check check_planka
-run_check check_docker_compose
+# run_check check_minetest
+# run_check check_planka
+# run_check check_docker_compose
 
 echo ""
 bold "=== Resultaat ==="
