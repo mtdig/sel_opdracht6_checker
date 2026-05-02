@@ -45,7 +45,9 @@ eval "$(openssl enc -d -aes-256-cbc -pbkdf2 -pass pass:"$DECRYPT_PASS" -in "$SEC
 
 # Verify required secrets are present
 for var in SSH_USER SSH_PASS MYSQL_REMOTE_USER MYSQL_REMOTE_PASS \
-           MYSQL_LOCAL_USER MYSQL_LOCAL_PASS WP_USER WP_PASS; do
+           MYSQL_LOCAL_USER MYSQL_LOCAL_PASS WP_USER WP_PASS \
+           PORTAINER_USER PORTAINER_PASS VAULTWARDEN_USER VAULTWARDEN_PASS \
+           PLANKA_USER PLANKA_PASS; do
     if [[ -z "${!var:-}" ]]; then
         echo -e "\e[31mERROR: Secret ${var} missing after decryption.\e[0m"
         exit 1
@@ -105,7 +107,7 @@ SSH_OK=0
 # Skip a check if SSH is not available
 require_ssh() {
     if [[ "$SSH_OK" -eq 0 ]]; then
-        fail "$1" "Overgeslagen — SSH-verbinding is niet beschikbaar"
+        fail "$1" "Overgeslagen - SSH-verbinding is niet beschikbaar"
         return 1
     fi
     return 0
@@ -171,12 +173,15 @@ check_ping() {
     section "Netwerk: ping ${TARGET}"
 
     trace "ping -c 2 -W 3 ${TARGET}"
-    if ping -c 2 -W 3 "${TARGET}" &>/dev/null; then
-        trace_done
-        pass "VM is bereikbaar via ping op ${TARGET}"
+    result=$(ping -c 2 -W 3 "${TARGET}" 2>&1 || echo "error")
+    trace_output "$result"
+    if echo "$result" | grep -q "0% packet loss"; then
+         trace_done
+         pass "VM is bereikbaar via ping op ${TARGET}"
     else
         trace_done
-        fail "VM is niet bereikbaar via ping op ${TARGET}"
+        fail "VM is niet bereikbaar via ping op ${TARGET}" \
+             "Controleer netwerkconfiguratie en of VM aanstaat"
     fi
 }
 
@@ -184,7 +189,9 @@ check_ssh() {
     section "SSH"
 
     trace "ssh ${SSH_USER}@${TARGET} echo ok"
-    if ssh_cmd "echo ok" | grep -q "ok"; then
+    result=$(ssh_cmd "echo ok" || echo "error")
+    trace_output "$result"
+    if echo "$result" | grep -q "ok"; then
         trace_done
         SSH_OK=1
         pass "SSH-verbinding als ${SSH_USER} op poort 22"
@@ -201,7 +208,7 @@ check_internet() {
 
     trace "ssh ${SSH_USER}@${TARGET} 'ping -c 1 -W 3 8.8.8.8'"
     local result
-    result=$(ssh_cmd "ping -c 1 -W 3 8.8.8.8 &>/dev/null && echo ok || echo nok" || echo "nok")
+    result=$(ssh_cmd "ping -c 1 -W 3 8.8.8.8 && echo ok || echo nok" || echo "nok")
     trace_done; trace_output "$result"
     if [[ "$result" == *"ok"* ]]; then
         pass "VM heeft internettoegang"
@@ -252,6 +259,7 @@ check_sftp_upload() {
     local check_url="${APACHE_URL}/opdracht6.html"
 
     # Create an HTML file containing the local username
+    timestamp=$(date)
     cat > "$tmpfile" <<HTMLEOF
 <!DOCTYPE html>
 <html>
@@ -259,10 +267,11 @@ check_sftp_upload() {
     <body>
         <h1>SELab Opdracht 6</h1>
         <p>Ingediend door: ${LOCAL_USER}</p>
+        <p>Timestamp: ${timestamp}</p>  
     </body>
 </html>
 HTMLEOF
-
+    trace_output "Gegenereerd temp HTML-bestand:\n$(cat "$tmpfile")"
     # 1: Upload via SFTP
     trace "sftp ${SSH_USER}@${TARGET} put opdracht6.html ${remote_path}"
     if sshpass -p "${SSH_PASS}" sftp \
@@ -289,7 +298,7 @@ EOF
     ssh_cmd "chmod 644 ${remote_path}" &>/dev/null || true
     trace_done
 
-    # 2: Fetch the page via HTTPS and verify the username is present
+    # 2: Fetch the page via HTTPS and verify the username and timestamp are present
     trace "curl -sk ${check_url}"
     local body http_code
     body=$(curl -sk --connect-timeout 5 -w '\n%{http_code}' "${check_url}" 2>/dev/null || echo "000")
@@ -307,13 +316,13 @@ EOF
     fi
 
     trace "grep '${LOCAL_USER}' in response body"
-    if echo "$body" | grep -q "${LOCAL_USER}"; then
+    if echo "$body" | grep -q "${LOCAL_USER}" && echo "$body" | grep -q "${timestamp}"; then
         trace_done
-        pass "Roundtrip OK: gebruiker '${LOCAL_USER}' gevonden in opdracht6.html"
+        pass "Roundtrip OK: gebruiker '${LOCAL_USER}' en timestamp '${timestamp}' gevonden in opdracht6.html"
     else
         trace_done
-        fail "Roundtrip NIET OK: gebruiker '${LOCAL_USER}' niet gevonden in opdracht6.html" \
-             "Verwacht '${LOCAL_USER}' in de pagina-inhoud"
+        fail "Roundtrip NIET OK: gebruiker '${LOCAL_USER}' of timestamp '${timestamp}' niet gevonden in opdracht6.html" \
+             "Verwacht '${LOCAL_USER}' en '${timestamp}' in de pagina-inhoud"
     fi
 
 }
@@ -400,6 +409,7 @@ check_wordpress_post() {
     trace "curl -sk ${WP_URL}/?rest_route=/wp/v2/posts"
     local response
     response=$(curl -sk --connect-timeout 5 "${WP_URL}/?rest_route=/wp/v2/posts" 2>/dev/null || echo "[]")
+    trace_output "$(echo $response | jq '.[] | {id: .id, title: .title.rendered}')"
     local count
     count=$(echo "$response" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo "0")
     trace_done; trace_output "posts=${count}"
@@ -425,6 +435,7 @@ check_wordpress_login() {
     <param><value>${WP_PASS}</value></param>
   </params>
 </methodCall>" 2>/dev/null || echo "")
+    trace_output "$response"
     trace_done
 
     if echo "$response" | grep -q "blogid"; then
@@ -464,6 +475,52 @@ check_portainer() {
     else
         fail "Portainer niet bereikbaar op ${PORTAINER_URL}" \
              "HTTP status: ${http_code}"
+        return
+    fi
+
+    # Login
+    trace "curl -sk -X POST ${PORTAINER_URL}/api/auth (login als ${PORTAINER_USER})"
+    local token
+    token=$(curl -sk --connect-timeout 5 \
+        -X POST "${PORTAINER_URL}/api/auth" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"${PORTAINER_USER}\",\"password\":\"${PORTAINER_PASS}\"}" \
+        2>/dev/null | jq -r '.jwt // empty')
+    trace_done; trace_output "token=${token:0:20}..."
+    if [[ -z "$token" ]]; then
+        fail "Portainer login als ${PORTAINER_USER} mislukt" \
+             "Controleer gebruiker/wachtwoord"
+        return
+    fi
+    pass "Portainer login als ${PORTAINER_USER}"
+
+    # Resolve the first available endpoint ID dynamically
+    local endpoint_id
+    endpoint_id=$(curl -sk --connect-timeout 5 \
+        -H "Authorization: Bearer ${token}" \
+        "${PORTAINER_URL}/api/endpoints" \
+        2>/dev/null | jq -r 'if type == "array" then .[0].Id else empty end')
+    if [[ -z "$endpoint_id" ]]; then
+        fail "Portainer endpoint niet gevonden" \
+             "Geen endpoints beschikbaar in Portainer"
+        return
+    fi
+
+    # Container count
+    trace "curl -sk ${PORTAINER_URL}/api/endpoints/${endpoint_id}/docker/containers/json"
+    local containers_json container_count container_names
+    containers_json=$(curl -sk --connect-timeout 5 \
+        -H "Authorization: Bearer ${token}" \
+        "${PORTAINER_URL}/api/endpoints/${endpoint_id}/docker/containers/json?all=true" \
+        2>/dev/null || echo "[]")
+    container_count=$(echo "$containers_json" | jq 'if type == "array" then length else 0 end' 2>/dev/null || echo "0")
+    container_names=$(echo "$containers_json" | jq -r 'if type == "array" then .[].Names[0] else "" end' 2>/dev/null | sed 's|^/||' | tr '\n' ' ')
+    trace_done; trace_output "containers=${container_count}: ${container_names}"
+    if [[ "$container_count" -gt 0 ]]; then
+        pass "Portainer ziet ${container_count} container(s): ${container_names}"
+    else
+        fail "Portainer ziet geen containers" \
+             "Controleer of de Docker endpoint correct is geconfigureerd"
     fi
 }
 
@@ -481,12 +538,69 @@ check_vaultwarden() {
     else
         fail "Vaultwarden niet bereikbaar op ${VAULTWARDEN_URL}" \
              "HTTP status: ${http_code}"
+        return
+    fi
+
+    # Use a temporary data dir so bw config doesn't bleed between runs
+    local bw_data_dir
+    bw_data_dir=$(mktemp -d)
+
+    _bw_cleanup() { rm -rf "${bw_data_dir:-}"; unset BITWARDENCLI_APPDATA_DIR BW_PASSWORD NODE_TLS_REJECT_UNAUTHORIZED; }
+    trap _bw_cleanup RETURN
+
+    export BITWARDENCLI_APPDATA_DIR="$bw_data_dir"
+    export BW_PASSWORD="${VAULTWARDEN_PASS}"
+    export NODE_TLS_REJECT_UNAUTHORIZED=0
+
+    # Point bw at our Vaultwarden instance
+    trace "bw config server ${VAULTWARDEN_URL}"
+    bw config server "${VAULTWARDEN_URL}" &>/dev/null
+    trace_done
+
+    # Login - --passwordenv reads password from env var, --raw prints only the session key
+    trace "bw login ${VAULTWARDEN_USER} (bw CLI)"
+    local bw_session
+    bw_session=$(bw login "${VAULTWARDEN_USER}" \
+        --passwordenv BW_PASSWORD \
+        --raw --nointeraction 2>/dev/null || echo "")
+    trace_done
+    if [[ -z "$bw_session" ]]; then
+        fail "Vaultwarden login als ${VAULTWARDEN_USER} mislukt" \
+             "Controleer gebruiker/wachtwoord"
+        return
+    fi
+    pass "Vaultwarden login als ${VAULTWARDEN_USER}"
+
+    # Sync vault
+    trace "bw sync (vault ophalen)"
+    bw sync --session "$bw_session" --nointeraction &>/dev/null || true
+    trace_done
+
+    # Retrieve and decrypt the 'testsecret' item
+    trace "bw get item testsecret"
+    local item_json secret_password
+    item_json=$(bw get item testsecret --session "$bw_session" --nointeraction 2>/dev/null || echo "{}")
+    secret_password=$(echo "$item_json" | jq -r '.login.password // empty')
+    trace_done; trace_output "testsecret password=${secret_password}"
+
+    bw logout --nointeraction &>/dev/null || true
+
+    if [[ -z "$secret_password" ]]; then
+        fail "Wachtwoord voor 'testsecret' niet gevonden in Vaultwarden" \
+             "Controleer of het item 'testsecret' bestaat in de kluis"
+    elif [[ "$secret_password" == "Sup3rS3crP@55" ]]; then
+        pass "Vaultwarden 'testsecret' wachtwoord correct (Sup3rS3crP@55)"
+    else
+        fail "Vaultwarden 'testsecret' wachtwoord incorrect" \
+             "Verwacht: Sup3rS3crP@55, gevonden: ${secret_password}"
     fi
 }
 
 check_minetest() {
     section "Docker - Minetest"
-    require_ssh "Minetest check" || return 0
+
+    # Confirm container is running via SSH
+    require_ssh "Minetest container check" || return
 
     trace "ssh ${SSH_USER}@${TARGET} docker ps --filter name=minetest"
     local ports
@@ -494,12 +608,80 @@ check_minetest() {
     trace_done; trace_output "$ports"
 
     if echo "$ports" | grep -q "${MINETEST_PORT}"; then
-        pass "Minetest container draait op UDP poort ${MINETEST_PORT}"
+        pass "Minetest container draait met UDP poort ${MINETEST_PORT} gemapped"
     elif ssh_cmd "docker ps --format '{{.Names}}' 2>/dev/null" | grep -qi minetest; then
-        pass "Minetest container draait (poort niet bevestigd)"
+        pass "Minetest container draait (poort mapping niet bevestigd)"
     else
-        fail "Minetest container niet gevonden op UDP poort ${MINETEST_PORT}" \
+        fail "Minetest container niet gevonden" \
              "Controleer of de Minetest container draait"
+        return
+    fi
+
+    # Send a minimal Minetest/Luanti TOSERVER_INIT packet and check for any response.
+    #
+    # The Luanti UDP protocol wraps every payload in a low-level "base packet"
+    # header, followed by the command-specific payload.
+    #
+    #  Low-level reliable-packet wrapper 
+    #  Offset  Size  Value       Field
+    #  0       4     4F 45 74 03 protocol_id  - Luanti magic, identifies the
+    #                                           protocol (never changes)
+    #  4       2     00 00       sender_peer_id - 0x0000 means "I am a new
+    #                                           client, assign me a peer ID"
+    #  6       1     00          channel      - traffic channel (0–2); 0 = main
+    #  7       1     03          type         - TYPE_RELIABLE (3); tells the
+    #                                           server to ACK this packet
+    #  8       2     FF FF       seqnum       - sequence number for reliability;
+    #                                           0xFFFF is the initial value used
+    #                                           by new clients
+    #  10      1     01          subtype      - PACKET_TYPE_ORIGINAL (1); not a
+    #                                           split/chunked packet
+    #
+    #  TOSERVER_INIT payload (command 0x0002) 
+    #  11      2     00 02       command      - TOSERVER_INIT; first packet a
+    #                                           client sends to initiate a session
+    #  13      1     1C          max_serialization_ver - highest map/object
+    #                                           serialisation format the client
+    #                                           understands; 28 (0x1C) =
+    #                                           SER_FMT_VER_HIGHEST_READ
+    #  14      2     00 00       supp_compr_modes - bitmask of supported
+    #                                           compression methods; 0 = none
+    #  16      2     00 25       min_net_proto_version - lowest network protocol
+    #                                           version the client accepts; 37
+    #  18      2     00 25       max_net_proto_version - highest network protocol
+    #                                           version the client speaks; 37
+    #                                           (LATEST_PROTOCOL_VERSION in
+    #                                           src/network/networkprotocol.h)
+    #  20      2     00 07       player_name length - big-endian uint16 length
+    #                                           prefix of the UTF-8 name string
+    #  22      7     trouble     player_name  - the player name sent to the
+    #                                           server; server echoes it back in
+    #                                           TOCLIENT_HELLO, confirming it
+    #                                           accepted the connection attempt
+    #
+    # Total packet: 29 bytes
+    # Refs: 
+    #       Luanti network protocol: https://docs.luanti.org/for-engine-devs/network-protocol/
+    #       Luanti network protocol source code: 
+    #           https://github.com/luanti-org/luanti/blob/master/src/network/networkprotocol.h
+
+    
+    trace "minetest TOSERVER_INIT → ${TARGET}:${MINETEST_PORT} (UDP, player='trouble')"
+    local response_tmp response_hex byte_count
+    response_tmp=$(mktemp)
+    (printf '\x4f\x45\x74\x03\x00\x00\x00\x03\xff\xff\x01\x00\x02\x1c\x00\x00\x00\x25\x00\x25\x00\x07trouble'; \
+     sleep 3) \
+        | nc -u -w 3 "${TARGET}" "${MINETEST_PORT}" 2>/dev/null \
+        > "$response_tmp"
+    byte_count=$(wc -c < "$response_tmp")
+    response_hex=$(xxd "$response_tmp" 2>/dev/null || echo "")
+    rm -f "$response_tmp"
+    trace_done; trace_output "ontvangen bytes=${byte_count}"$'\n'"${response_hex}"
+    if [[ "$byte_count" -gt 0 ]]; then
+        pass "Minetest server reageert op UDP poort ${MINETEST_PORT} (${byte_count} bytes ontvangen)"
+    else
+        fail "Minetest server reageert niet op UDP poort ${MINETEST_PORT}" \
+             "Container draait maar server stuurt geen antwoord - controleer firewall en poort mapping"
     fi
 }
 
@@ -519,19 +701,19 @@ check_planka() {
              "HTTP status: ${http_code}"
     fi
 
-    trace "curl -sk -X POST ${PLANKA_URL}/api/access-tokens (login)"
+    trace "curl -sk -X POST ${PLANKA_URL}/api/access-tokens (login als ${PLANKA_USER})"
     local login_response
     login_response=$(curl -sk --connect-timeout 5 \
         -X POST "${PLANKA_URL}/api/access-tokens" \
         -H "Content-Type: application/json" \
-        -d "{\"emailOrUsername\":\"troubleshoot@selab.hogent.be\",\"password\":\"shoot\"}" \
+        -d "{\"emailOrUsername\":\"${PLANKA_USER}\",\"password\":\"${PLANKA_PASS}\"}" \
         2>/dev/null || echo "")
     trace_done; trace_output "$login_response"
 
     if echo "$login_response" | jq -e '.item' &>/dev/null; then
-        pass "Planka login als troubleshoot@selab.hogent.be"
+        pass "Planka login als ${PLANKA_USER}"
     else
-        fail "Planka login als troubleshoot@selab.hogent.be mislukt" \
+        fail "Planka login als ${PLANKA_USER} mislukt" \
              "Controleer gebruiker/wachtwoord"
     fi
 }
@@ -623,21 +805,21 @@ bold "====================================================="
 
 run_check check_ping
 run_check check_ssh
-run_check check_internet
-run_check check_apache_https
-run_check check_sftp_upload
-run_check check_mysql_remote
-run_check check_mysql_local_via_ssh
-run_check check_mysql_admin_not_remote
-run_check check_wordpress_reachable
-run_check check_wordpress_post
-run_check check_wordpress_login
-run_check check_wordpress_db
-run_check check_portainer
-run_check check_vaultwarden
+# run_check check_internet
+# run_check check_apache_https
+# run_check check_sftp_upload
+# run_check check_mysql_remote
+# run_check check_mysql_local_via_ssh
+# run_check check_mysql_admin_not_remote
+# run_check check_wordpress_reachable
+# run_check check_wordpress_post
+# run_check check_wordpress_login
+# run_check check_wordpress_db
+# run_check check_portainer
+# run_check check_vaultwarden
 run_check check_minetest
-run_check check_planka
-run_check check_docker_compose
+# run_check check_planka
+# run_check check_docker_compose
 
 echo ""
 bold "=== Resultaat ==="

@@ -30,6 +30,19 @@ pub async fn get(url: &str) -> Result<HttpResponse, String> {
     Ok(HttpResponse { status, body })
 }
 
+pub async fn get_with_auth(url: &str, bearer_token: &str) -> Result<HttpResponse, String> {
+    let client = insecure_client();
+    let resp = client
+        .get(url)
+        .header("Authorization", format!("Bearer {bearer_token}"))
+        .send()
+        .await
+        .map_err(|e| format!("Connection failed: {e}"))?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.unwrap_or_default();
+    Ok(HttpResponse { status, body })
+}
+
 pub async fn post(url: &str, content_type: &str, payload: &str) -> Result<HttpResponse, String> {
     let client = insecure_client();
     let resp = client

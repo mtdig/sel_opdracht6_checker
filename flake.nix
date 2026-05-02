@@ -23,6 +23,7 @@
               iputils   # ping
               netcat-openbsd
               openssl
+              bitwarden-cli
             ];
 
             shellHook = ''
@@ -39,7 +40,7 @@
             type = "app";
             program = toString (pkgs.writeShellScript "run-checker" ''
               export PATH="${pkgs.lib.makeBinPath (with pkgs; [
-                bash curl jq mariadb.client openssh sshpass iputils netcat-openbsd openssl
+                bash curl jq mariadb.client openssh sshpass iputils netcat-openbsd openssl bitwarden-cli
               ])}:$PATH"
               exec bash "$(dirname "$0")/../checker.sh" "$@"
             '');

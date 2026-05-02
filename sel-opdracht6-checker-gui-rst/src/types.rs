@@ -215,6 +215,12 @@ pub struct Secrets {
     pub mysql_local_pass: String,
     pub wp_user: String,
     pub wp_pass: String,
+    pub portainer_user: String,
+    pub portainer_pass: String,
+    pub vaultwarden_user: String,
+    pub vaultwarden_pass: String,
+    pub planka_user: String,
+    pub planka_pass: String,
 }
 
 impl Secrets {
@@ -228,6 +234,12 @@ impl Secrets {
             mysql_local_pass: map.get("MYSQL_LOCAL_PASS").cloned().unwrap_or_default(),
             wp_user: map.get("WP_USER").cloned().unwrap_or_default(),
             wp_pass: map.get("WP_PASS").cloned().unwrap_or_default(),
+            portainer_user: map.get("PORTAINER_USER").cloned().unwrap_or_default(),
+            portainer_pass: map.get("PORTAINER_PASS").cloned().unwrap_or_default(),
+            vaultwarden_user: map.get("VAULTWARDEN_USER").cloned().unwrap_or_default(),
+            vaultwarden_pass: map.get("VAULTWARDEN_PASS").cloned().unwrap_or_default(),
+            planka_user: map.get("PLANKA_USER").cloned().unwrap_or_default(),
+            planka_pass: map.get("PLANKA_PASS").cloned().unwrap_or_default(),
         }
     }
 }
@@ -361,9 +373,17 @@ impl Default for PortainerCfg {
 #[serde(default)]
 pub struct VaultwardenCfg {
     pub port: u16,
+    pub expected_item: String,
+    pub expected_pass: String,
 }
 impl Default for VaultwardenCfg {
-    fn default() -> Self { Self { port: 4123 } }
+    fn default() -> Self {
+        Self {
+            port: 4123,
+            expected_item: "testsecret".into(),
+            expected_pass: "Sup3rS3crP@55".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

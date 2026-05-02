@@ -27,8 +27,8 @@ pub async fn run(config: &Config) -> Vec<CheckResult> {
     }
 
     // Login
-    let test_user = &config.app.planka.test_user;
-    let test_pass = &config.app.planka.test_pass;
+    let test_user = &config.secrets.planka_user;
+    let test_pass = &config.secrets.planka_pass;
     let login_url = format!("{url}/api/access-tokens");
     let post_cmd = format!("POST {login_url} (as {test_user})");
     let payload = format!(
